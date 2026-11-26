@@ -10,7 +10,6 @@
   :root{ --paper:#f4f1ea; --ink:#141414; --red:#c8102e; }
   html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:'Caveat Brush',cursive;color:var(--ink);user-select:none;-webkit-user-select:none;touch-action:none;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
   #pbtn{position:fixed;top:10px;right:12px;z-index:6;font-size:26px;margin:0;padding:.05em .55em;background:rgba(244,241,234,.8)}
-  .touch-only{display:none} body.touch .touch-only{display:block} body.touch .desk-only{display:none}
   canvas{display:block}
   .ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px;box-sizing:border-box;z-index:10}
   .paper{background:var(--paper)}
@@ -26,7 +25,6 @@
   .dark button:hover{background:var(--red)}
   .hide{display:none!important}
   #hud{position:fixed;top:14px;left:18px;font-size:30px;color:var(--red);z-index:5;-webkit-text-stroke:1px var(--ink);pointer-events:none}
-  #hint{position:fixed;bottom:18px;left:0;right:0;text-align:center;font-size:22px;color:var(--ink);z-index:5;pointer-events:none;transition:opacity 1.5s;text-shadow:0 0 6px var(--paper),0 0 12px var(--paper)}
   #rain{position:fixed;inset:0;pointer-events:none;z-index:4}
   #flash{position:fixed;inset:0;background:var(--red);opacity:0;pointer-events:none;z-index:6}
   #fade{position:fixed;inset:0;background:var(--paper);opacity:0;pointer-events:none;z-index:7}
@@ -42,14 +40,13 @@
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126142026"></script>
-<script src="lobo.js?v=20261126142026"></script>
-<script src="ceu.js?v=20261126142026"></script>
-<script src="capa.js?v=20261126142026"></script>
+<script src="arte.js?v=20261126142346"></script>
+<script src="lobo.js?v=20261126142346"></script>
+<script src="ceu.js?v=20261126142346"></script>
+<script src="capa.js?v=20261126142346"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
-<div id="hint" class="hide"><span class="desk-only">W anda · A/D desvia · mouse ou Q/E olha para os lados</span><span class="touch-only">arraste para cima: anda · para os lados: desvia e olha</span></div>
 <button id="pbtn" class="hide" aria-label="Pausar">❚❚</button>
 <canvas id="rain"></canvas>
 <div id="flash"></div>
@@ -69,7 +66,6 @@ try{ if(sessionStorage.getItem('chapeu_sangue')){ const b=document.getElementByI
 <div id="pause" class="ov paper hide">
   <div class="msg">Pausado</div>
   <button id="resume">Voltar para a floresta</button>
-  <button id="soft">Clarões: normais</button>
 </div>
 
 
@@ -543,10 +539,10 @@ let lookAmt=0, stepAcc=0, walkT=0, boilT=0, boilF=0, redDir=0, shake=0, endT=0, 
 let gaitT=0, lastHalf=0, crawlK=0, wShow=0, wGrowl=false, FACESET=[], BLOODSET=[], lightT=12+Math.random()*8, flashP=null, flashT=0, flashK=0, FLASH_ON=false, REDUCE=false, bloodI=0;
 const BLACK=new THREE.Color(0);
 const keys={};
-const KEYMAP={KeyW:'fwd',ArrowUp:'fwd',KeyA:'left',KeyD:'right',ShiftLeft:'run',ShiftRight:'run'};
-addEventListener('keydown',e=>{ if(e.code==='KeyT'&&!e.repeat){ REDUCE=!REDUCE; $('soft').textContent=REDUCE?'Clarões: suaves':'Clarões: normais'; $('hint').textContent=REDUCE?'Clarões suaves (T)':'Clarões normais (T)'; $('hint').style.opacity=1; setTimeout(()=>$('hint').style.opacity=0,1800); }
-  if(KEYMAP[e.code]) keys[KEYMAP[e.code]]=true; if(e.code==='KeyQ'||e.code==='ArrowLeft') keyLook=1; if(e.code==='KeyE'||e.code==='ArrowRight') keyLook=-1; if(e.code.startsWith('Arrow')) e.preventDefault(); });
-addEventListener('keyup',e=>{ if(KEYMAP[e.code]) keys[KEYMAP[e.code]]=false; if((e.code==='KeyQ'||e.code==='ArrowLeft')&&keyLook===1){keyLook=0;mouseYaw=0;} if((e.code==='KeyE'||e.code==='ArrowRight')&&keyLook===-1){keyLook=0;mouseYaw=0;} });
+const KEYMAP={KeyW:'fwd',ArrowUp:'fwd',KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right',ShiftLeft:'run',ShiftRight:'run'}; // setas = WASD; olhar: mouse ou Q/E
+addEventListener('keydown',e=>{
+  if(KEYMAP[e.code]) keys[KEYMAP[e.code]]=true; if(e.code==='KeyQ') keyLook=1; if(e.code==='KeyE') keyLook=-1; if(e.code.startsWith('Arrow')) e.preventDefault(); });
+addEventListener('keyup',e=>{ if(KEYMAP[e.code]) keys[KEYMAP[e.code]]=false; if(e.code==='KeyQ'&&keyLook===1){keyLook=0;mouseYaw=0;} if(e.code==='KeyE'&&keyLook===-1){keyLook=0;mouseYaw=0;} });
 // celular: dedo na tela vira manche (invisível). Para cima anda, sempre na mesma velocidade; para o lado anda na diagonal
 // e, arrastando mais, ela vira a cabeça para aquela lateral. Soltou: para e volta a olhar para frente.
 let stick=null, touchLat=0, touchYaw=null;
@@ -573,9 +569,8 @@ function lock(){ if(TOUCH) return; try{ const p=renderer.domElement.requestPoint
 document.addEventListener('pointerlockchange',()=>{ if(!document.pointerLockElement && state==='play') pause(); });
 function pause(){ stickEnd(); state='paused'; $('pause').classList.remove('hide'); if(AC) AC.suspend(); }
 $('pbtn').onclick=e=>{ e.stopPropagation(); if(state==='play') pause(); };
-$('soft').onclick=()=>{ REDUCE=!REDUCE; $('soft').textContent=REDUCE?'Clarões: suaves':'Clarões: normais'; };
 $('resume').onclick=()=>{ $('pause').classList.add('hide'); state='play'; if(AC) AC.resume(); lock(); };
-$('go').onclick=()=>{ $('start').classList.add('hide'); if(TOUCH) $('pbtn').classList.remove('hide'); audioInit(); state='play'; lock(); $('hud').classList.remove('hide'); $('hint').classList.remove('hide'); setTimeout(()=>$('hint').style.opacity=0,9000); };
+$('go').onclick=()=>{ $('start').classList.add('hide'); if(TOUCH) $('pbtn').classList.remove('hide'); audioInit(); state='play'; lock(); $('hud').classList.remove('hide'); };
 
 function hit(){
   hp--; inv=1.6; shake=.35; sfx.rip(); $('flash').style.transition='none'; $('flash').style.opacity=.45; requestAnimationFrame(()=>{ $('flash').style.transition='opacity .6s'; $('flash').style.opacity=0; });
