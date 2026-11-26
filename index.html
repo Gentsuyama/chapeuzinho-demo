@@ -40,10 +40,10 @@
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126143123"></script>
-<script src="lobo.js?v=20261126143123"></script>
-<script src="ceu.js?v=20261126143123"></script>
-<script src="capa.js?v=20261126143123"></script>
+<script src="arte.js?v=20261126143526"></script>
+<script src="lobo.js?v=20261126143526"></script>
+<script src="ceu.js?v=20261126143526"></script>
+<script src="capa.js?v=20261126143526"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -867,9 +867,9 @@ function armsTick(on){
     else { const e=(u-.5)/.5; pose=P; dy=lerp(.05,-.06,e); rot=lerp(.25,0,e); }             // braço dobrado puxando (sempre um estica enquanto o outro puxa)
     if(m.geometry!==pose.geo){ m.geometry=pose.geo; m.material=pose.mat; }
     // as duas artes vêm do lado trocado: espelha e gira o dobro da inclinação do braço para manter a direção
-    // (esticado ~.49 rad -> gira .98; dobrado: ombro->mão ~.52 rad -> gira 1.05)
-    if(pose===E){ m.scale.x=-side; m.rotation.z=-side*(.98-rot); } else { m.scale.x=-side; m.rotation.z=side*(1.05+rot); }
-    const P_=pose===P; m.position.set(side*(SH_X+(P_?.06:0)), SH_Y+dy+(P_?.08:0), -.004); // dobrado: ombro um pouco mais alto e para fora (o cotovelo agora fica para dentro) // atrás do corpo: ombro some sob o capuz
+    // (esticado ~.49 rad -> gira .98; dobrado: girado até a mão apontar para a frente, para cima na tela)
+    if(pose===E){ m.scale.x=-side; m.rotation.z=-side*(.98-rot); } else { m.scale.x=-side; m.rotation.z=side*(rot*.8-2.45); }
+    const P_=pose===P; m.position.set(side*(SH_X+(P_?.04:0)), SH_Y+dy, -.004); // atrás do corpo: ombro some sob o capuz
   }
 }
 function showEnd(){ $('pbtn').classList.add('hide'); stickEnd();
