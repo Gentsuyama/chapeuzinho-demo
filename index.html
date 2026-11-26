@@ -37,12 +37,12 @@
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126174103"></script>
-<script src="lobo.js?v=20261126174103"></script>
-<script src="ceu.js?v=20261126174103"></script>
-<script src="capa.js?v=20261126174103"></script>
-<script src="casa.js?v=20261126174103"></script>
-<script src="lobocorpo.js?v=20261126174103"></script>
+<script src="arte.js?v=20261126174457"></script>
+<script src="lobo.js?v=20261126174457"></script>
+<script src="ceu.js?v=20261126174457"></script>
+<script src="capa.js?v=20261126174457"></script>
+<script src="casa.js?v=20261126174457"></script>
+<script src="lobocorpo.js?v=20261126174457"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -365,7 +365,7 @@ function fogTick(wx,wz,base,vs){ // base: cor do papel do momento; vs: 0 olhando
 // A casa fica na trilha, de verdade, logo atrás da última fileira de árvores (as árvores da frente a tapam).
 // Flores 1-5: aparece INTEIRA, de 60% transparente (1ª flor) a opaca (5ª), sempre lá atrás da última árvore;
 // 6-9: vai chegando mais perto; 10: ela chega, o lobisomem sai da porta e a pega.
-let house=null, wolfman=null, houseNear=20, houseS=.55, houseD=20, houseVis=0, houseHead=0, houseT=0, FOGCOL=new THREE.Color(PAPER);
+let house=null, wolfman=null, houseOn=false, houseNear=34, houseS=1, houseD=34, houseVis=0, houseHead=0, houseT=0, FOGCOL=new THREE.Color(PAPER);
 const HOUSE_W=16, HOUSE_D=[34,34,34,34,34,34,27,21,16,13], HOUSE_S=[1,1,1,1,1,1,1,1,1,1]; // distância por flor (tamanho real; longe = pequena)
 function buildHouse(){
   if(!CASATEX.casa) return;
@@ -392,15 +392,13 @@ function houseTick(dt,wx,wz){
   const final=state==='house';
   const gi=Math.min(9,got), tgtD=final?11:HOUSE_D[gi], tgtS=final?1:HOUSE_S[gi];
   houseS+=(tgtS-houseS)*Math.min(1,dt*(final?1.4:.6));
-  const tgtV=final?1:(got>0?.4+.6*Math.min(1,(got-1)/4):0);   // 60% transparente na 1ª flor, opaca na 5ª
+  const tgtV=final?1:Math.min(1,got*.2);   // começa 100% transparente; cada flor tira 20% (opaca na 5ª)
   houseD+=(tgtD-houseD)*Math.min(1,dt*(final?1.4:.6)); houseVis+=(tgtV-houseVis)*Math.min(1,dt*.8);
   house.visible=houseVis>.01;
-  // a última árvore montada fica logo à frente da casa (as de trás, já sumidas na névoa, não tapam a casa)
-  if(!house.visible) return;
   // Ponto distante fixo no mundo: a houseD à frente dela, no rumo da trilha (depende só de onde ELA está; virar a cabeça não muda).
   // Para as árvores de verdade a taparem, a casa é posta logo atrás da última árvore que fecha o corredor nessa direção,
   // no raio câmera -> ponto distante e encolhida na mesma proporção: na tela se comporta como um objeto lá no fundo.
-  frameAt(pz,FR); houseHead+=(FR.a-houseHead)*Math.min(1,dt*.8);
+  frameAt(pz,FR); if(!houseOn){ houseOn=true; houseHead=FR.a; } houseHead+=(FR.a-houseHead)*Math.min(1,dt*.8); // posicionada desde o início, invisível: quando aparece já está no lugar (não entra de lado)
   const fx=wx-Math.sin(houseHead)*houseD, fzz=wz-Math.cos(houseHead)*houseD, fy=final?-1.2:-.3;
   let dist=houseD;
   if(!final){ const tn=Math.tan(houseHead), ff={}; let hit=Infinity;
@@ -891,9 +889,9 @@ function update(dt){
       if(c.state==='warn'){ s=.12+Math.random()*.07; if(c.t>c.warn){ c.state='out'; c.t=0; sfx.swipe(c.side*.6); } }
       else if(c.state==='out'){
         if(c.t<CLAW_OUT){ const u=c.t/CLAW_OUT, e=u*u*(3-2*u); s=e; th=lerp(CLAW_UP,-.15,e); }
-        else { const u=(c.t-CLAW_OUT)/CLAW_BACK; s=1-u; th=lerp(-.15,-.45,Math.min(1,u)); if(u>=1){ s=0; c.state='idle'; c.cool=1.1; c.grp.visible=false; } } // sem parar: desce e já recolhe
+        else { const u=(c.t-CLAW_OUT)/CLAW_BACK; s=1-u; th=lerp(-.15,-.45,Math.min(1,u)); if(u>=1){ s=0; c.state='done'; c.grp.visible=false; } } // sem parar: desce e já recolhe
       }
-      else if(c.state==='in'){ s=Math.max(0,1-c.t/.5); th=-.4; if(s<=0){ c.state='idle'; c.cool=1.1; c.grp.visible=false; } }
+      else if(c.state==='in'){ s=Math.max(0,1-c.t/.5); th=-.4; if(s<=0){ c.state='done'; c.grp.visible=false; } }
       c.arm.scale.x=c.side<0?s:-s;
       c.arm.rotation.z=c.side<0?th:-th;
       c.arm.position.y=(c.state==='warn'?Math.sin(t*60)*.02:0);
