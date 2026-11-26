@@ -41,10 +41,10 @@
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126134901"></script>
-<script src="lobo.js?v=20261126134901"></script>
-<script src="ceu.js?v=20261126134901"></script>
-<script src="capa.js?v=20261126134901"></script>
+<script src="arte.js?v=20261126140104"></script>
+<script src="lobo.js?v=20261126140104"></script>
+<script src="ceu.js?v=20261126140104"></script>
+<script src="capa.js?v=20261126140104"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -881,7 +881,10 @@ function armsTick(on){
     else if(u<.5){ const e=(u-.22)/.28; dy=lerp(.06,-.04,e); rot=lerp(.45,.36,e); }          // mão cravada: o corpo passa por ela
     else { const e=(u-.5)/.5; pose=P; dy=lerp(.05,-.06,e); rot=lerp(.25,0,e); }             // braço dobrado puxando (sempre um estica enquanto o outro puxa)
     if(m.geometry!==pose.geo){ m.geometry=pose.geo; m.material=pose.mat; }
-    m.position.set(side*SH_X, SH_Y+dy, -.004); m.rotation.z=side*rot; // atrás do corpo: ombro some sob o capuz
+    // a arte do braço esticado é uma mão ESQUERDA e a do dobrado uma DIREITA: espelha só no lado oposto
+    // (esticado: espelhar inverte a inclinação de ~.49 rad, por isso gira .98 a mais para manter a direção)
+    if(pose===E){ m.scale.x=-side; m.rotation.z=-side*(.98-rot); } else { m.scale.x=side; m.rotation.z=side*rot; }
+    m.position.set(side*SH_X, SH_Y+dy, -.004); // atrás do corpo: ombro some sob o capuz
   }
 }
 function showEnd(){ $('pbtn').classList.add('hide'); stickEnd();
