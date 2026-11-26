@@ -28,9 +28,6 @@
   #rain{position:fixed;inset:0;pointer-events:none;z-index:4}
   #flash{position:fixed;inset:0;background:var(--red);opacity:0;pointer-events:none;z-index:6}
   #fade{position:fixed;inset:0;background:var(--paper);opacity:0;pointer-events:none;z-index:7}
-  #endtxt p{font-size:clamp(26px,4vw,40px);margin:.3em 0;opacity:0;transition:opacity 1.6s}
-  #endtxt p.on{opacity:1}
-  #endtxt .big{color:var(--red);font-size:clamp(34px,6vw,60px)}
   #bloodfx{position:fixed;inset:0;width:100%;height:100%;z-index:20;pointer-events:none}
   #bloodfx.cover{pointer-events:auto;cursor:pointer}
   #deathmsg{position:fixed;left:0;right:0;top:50%;transform:translateY(-50%);z-index:21;text-align:center;padding:0 16px;font-size:clamp(24px,4vw,40px);color:var(--paper);opacity:0;transition:opacity 1.2s;pointer-events:none;text-shadow:0 2px 0 #3a0008}
@@ -40,10 +37,11 @@
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126143526"></script>
-<script src="lobo.js?v=20261126143526"></script>
-<script src="ceu.js?v=20261126143526"></script>
-<script src="capa.js?v=20261126143526"></script>
+<script src="arte.js?v=20261126150209"></script>
+<script src="lobo.js?v=20261126150209"></script>
+<script src="ceu.js?v=20261126150209"></script>
+<script src="capa.js?v=20261126150209"></script>
+<script src="casa.js?v=20261126150209"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -69,16 +67,6 @@ try{ if(sessionStorage.getItem('chapeu_sangue')){ const b=document.getElementByI
 </div>
 
 
-<div id="end" class="ov paper hide">
-  <div id="endtxt">
-    <p>A casa da vovó.</p>
-    <p>Toc, toc.</p>
-    <p>— Entra, minha netinha…</p>
-    <p class="big">— Vovó… que olhos grandes você tem.</p>
-    <p id="endstats" style="font-size:24px"></p>
-    <p><button onclick="location.reload()">Jogar de novo</button></p>
-  </div>
-</div>
 
 <script>
 'use strict';
@@ -127,7 +115,7 @@ renderer.setSize(innerWidth,innerHeight);
 document.body.appendChild(renderer.domElement);
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x000000);
-scene.fog=new THREE.Fog(PAPER,12,52);
+scene.fog=new THREE.Fog(PAPER,10,44); // longe some no papel; a neblina (buildFog) cobre o chão e as laterais
 const cam=new THREE.PerspectiveCamera(66,innerWidth/innerHeight,0.05,200);
 // tela em pé: abre o campo de visão vertical para a largura não ficar estreita demais
 let CAMR=1.05; // distância da câmera atrás dela
@@ -148,14 +136,15 @@ function boilMat(frames,opts){ const m=new THREE.MeshBasicMaterial(Object.assign
 
 // ---------- arte do Flow: peças recortadas (demo/arte.js, gerado por arte/cortar_pecas.py) ----------
 const LW=9;
-let arms=[], WOLFTEX=null, SKYTEX=null; const CAPAIMG={}; // capa de costas e braços (demo/capa.js)
+let arms=[], CASATEX={}, WOLFTEX=null, SKYTEX=null; const CAPAIMG={}; // capa de costas e braços (demo/capa.js)
 const PECAS={}; // categoria -> peças {w,h,px,py,asp,geo,mat,...}
 function loadPecas(){
   if(!window.ARTE) return Promise.reject(new Error('arte.js não carregou'));
   const lobo=window.LOBO?new Promise(ok=>{ const im=new Image(); im.onload=()=>{ WOLFTEX=new THREE.Texture(im); WOLFTEX.needsUpdate=true; ok(); }; im.onerror=()=>ok(); im.src=LOBO.src; }):Promise.resolve();
   const ceu=window.CEU?new Promise(ok=>{ const im=new Image(); im.onload=()=>{ SKYTEX=new THREE.Texture(im); SKYTEX.wrapS=THREE.RepeatWrapping; SKYTEX.repeat.x=-1; SKYTEX.offset.x=1; SKYTEX.anisotropy=ANISO; SKYTEX.needsUpdate=true; ok(); }; im.onerror=()=>ok(); im.src=CEU.src; }):Promise.resolve();
   const capa=window.CAPA?Promise.all(Object.keys(CAPA).map(k=>new Promise(ok=>{ const im=new Image(); im.onload=()=>{ CAPAIMG[k]=im; ok(); }; im.onerror=()=>ok(); im.src=CAPA[k].src; }))):Promise.resolve();
-  return Promise.all([lobo,ceu,capa].concat(ARTE.map(p=>new Promise((ok,fail)=>{ const im=new Image(); im.onload=()=>{ if(!p.srcRosto) return ok([p,im]); const i2=new Image(); i2.onload=()=>ok([p,im,i2]); i2.onerror=fail; i2.src=p.srcRosto; }; im.onerror=fail; im.src=p.src; })))).then(list=>{ list.splice(0,3);
+  const casa=window.CASA?Promise.all(Object.keys(CASA).map(k=>new Promise(ok=>{ const im=new Image(); im.onload=()=>{ const t=new THREE.Texture(im); t.anisotropy=ANISO; t.needsUpdate=true; CASATEX[k]=t; ok(); }; im.onerror=()=>ok(); im.src=CASA[k].src; }))):Promise.resolve();
+  return Promise.all([lobo,ceu,capa,casa].concat(ARTE.map(p=>new Promise((ok,fail)=>{ const im=new Image(); im.onload=()=>{ if(!p.srcRosto) return ok([p,im]); const i2=new Image(); i2.onload=()=>ok([p,im,i2]); i2.onerror=fail; i2.src=p.srcRosto; }; im.onerror=fail; im.src=p.src; })))).then(list=>{ list.splice(0,4);
     list.forEach(([p,im,im2])=>{
       let src=im;
       if(p.cat==='garra'){ // garra invertida (miolo preto, traço claro): salta da floresta branca
@@ -222,19 +211,6 @@ function drawFlower(c,jr,a){
   c.beginPath(); c.arc(130,96,15,0,Math.PI*2); c.fillStyle=INK; c.fill();
 }
 // casa da vovó
-function drawHouse(c,jr,a){
-  const W=1024,H=768; c.clearRect(0,0,W,H); prep(c);
-  shape(c,J([[0,H+10],[0,700],[200,680],[500,690],[800,676],[W,696],[W,H+10]],a,jr),true,PAPER,LW);
-  shape(c,J([[652,170],[712,170],[712,330],[652,330]],a,jr),true,PAPER,LW,true);
-  shape(c,J([[270,410],[760,410],[760,720],[270,720]],a,jr),true,PAPER,LW,true);
-  shape(c,J([[210,430],[515,150],[820,430]],a,jr),true,PAPER,LW,true);
-  for(let i=0;i<9;i++){ const x=300+i*48; line(c,J([[x,410],[x+70,330]],a,jr),4); }
-  shape(c,J([[320,470],[430,470],[430,570],[320,570]],a,jr),true,INK,LW,true);
-  shape(c,J([[600,470],[710,470],[710,570],[600,570]],a,jr),true,INK,LW,true);
-  shape(c,J([[465,560],[565,560],[565,720],[465,720]],a,jr),true,PAPER,LW,true);
-  c.beginPath(); c.arc(548,648,8,0,Math.PI*2); c.fillStyle=INK; c.fill();
-  line(c,J([[375,470],[375,570]],a,jr),5); line(c,J([[655,470],[655,570]],a,jr),5);
-}
 // Chapeuzinho de costas
 function capaImg(c,im,cx,top,w,h,jr){ // peça do Flow com um tremor leve de traço (troca a cada quadro do "boil")
   c.save(); c.translate(cx+(jr()-.5)*3,top+h/2+(jr()-.5)*3); c.rotate((jr()-.5)*.012); c.drawImage(im,-w/2,-h/2,w,h); c.restore(); }
@@ -294,7 +270,7 @@ function drawRed(dir,hp,seed,a,reach){
 }
 
 // ---------- geração das texturas ----------
-let eyesMat, flowerMat, houseMat, hangMat; const bloodMats=[];
+let eyesMat, flowerMat, hangMat; const bloodMats=[];
 function drawHanged(c){ c.clearRect(0,0,128,400); prep(c); const jr=RNG(77);
   line(c,[[64,0],[64,90],[63,175]],4);
   c.fillStyle=INK; smoothPath(c,J(ellipsePts(66,198,21,27,9),1.5,jr),true); c.fill();
@@ -308,7 +284,7 @@ function buildArt(){
   const mk=(w,h,fn,n,a)=>{ const fr=[]; for(let f=0;f<n;f++){ const cv=mkCanvas(w,h); fn(cv.getContext('2d'),RNG(500+f*13),a); fr.push(tex(cv)); } return fr; };
   eyesMat=boilMat(mk(1024,400,drawEyes,3,2.5),{transparent:true,depthWrite:false,fog:false,alphaTest:.05,opacity:0});
   flowerMat=boilMat(mk(256,256,drawFlower,3,2));
-  houseMat=boilMat(mk(1024,768,drawHouse,3,2.5));
+  
   { const cv=mkCanvas(128,400); drawHanged(cv.getContext('2d')); hangMat=new THREE.MeshBasicMaterial({map:tex(cv),alphaTest:.5,side:THREE.DoubleSide}); }
   for(let i=0;i<4;i++){ const cv=mkCanvas(256,256); drawBlood(cv.getContext('2d'),900+i*41); bloodMats.push(new THREE.MeshBasicMaterial({map:tex(cv),alphaTest:.5})); }
 }
@@ -316,7 +292,7 @@ function buildArt(){
 // ---------- mundo ----------
 // garra: desce em arco do alto do tronco. CLAW_SLOW multiplica a duração do bote (2.5 = 60% mais lenta que a versão rápida)
 const CLAW_Y=1.35, CLAW_SLOW=2.5, CLAW_OUT=.16*CLAW_SLOW, CLAW_BACK=.45*CLAW_SLOW, CLAW_UP=1.2;
-const TOTAL=240, ROW_SP=1.6, Z0=4, NROWS=40, PXMAX=1.35; // faixa andável (de lado)
+const TOTAL=240, LEN=480, ROW_SP=1.6, Z0=4, NROWS=40, PXMAX=1.35; // faixa andável (de lado)
 const rowZ=k=>Z0-k*ROW_SP;
 // trilha sinuosa: x do centro do caminho em função de z (z diminui para frente). Reta só no começo.
 function pathX(z){ const d=-z-6; if(d<=0) return 0; const u=Math.min(1,d/24), e=u*u*(3-2*u);
@@ -327,7 +303,7 @@ const FR={};
 // põe o objeto no caminho: z ao longo da trilha, lat de lado (direita +), virado para frente da trilha
 function placeOnPath(obj,z,lat,y){ const f=frameAt(z); obj.position.set(f.x+lat*f.c, y||0, z-lat*f.s); obj.rotation.y=f.a; }
 function rowParams(k){ const r=RNG(k*7919+13); return { inL:2.0+r()*.45, inR:2.0+r()*.45, seed:Math.floor(r()*1e9) }; }
-let sky=null, rows=[], claws=[], flowers=[], house, red, eyes, floor, wolf=null, wolfMat=null, wolfFront=null, wolfFrontMat=null;
+let sky=null, rows=[], claws=[], flowers=[], red, eyes, floor, wolf=null, wolfMat=null, wolfFront=null, wolfFrontMat=null;
 const CLAWROWS=new Set(), blood=[], hanged=[];
 // faixa no chão que acompanha a curva da trilha
 function ribbon(lat0,lat1,z0,z1,step,us,vs){
@@ -338,24 +314,132 @@ function ribbon(lat0,lat1,z0,z1,step,us,vs){
   const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); geo.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2)); geo.setIndex(idx);
   return geo;
 }
+// ---------- neblina sobrenatural ----------
+// três camadas rente ao chão (fiapos que giram devagar, com contorno de tinta) + uma parede em volta que esconde o que está longe.
+// Cor acompanha o fundo: papel olhando para a frente, fumaça escura no vazio; no clarão, inverte.
+const FOGN=`float h1(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+float vn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f); return mix(mix(h1(i),h1(i+vec2(1.,0.)),f.x),mix(h1(i+vec2(0.,1.)),h1(i+vec2(1.,1.)),f.x),f.y); }
+float fbm(vec2 p){ float s=0., a=.5; for(int i=0;i<${TOUCH?3:4};i++){ s+=a*vn(p); p=p*2.03+vec2(17.3,9.1); a*=.5; } return s; }`;
+const FOG_U=()=>({uT:{value:0},uA:{value:1},uSeed:{value:0},uLine:{value:0},uCol:{value:new THREE.Color(PAPER)},uInk:{value:new THREE.Color(INK)},uP:{value:new THREE.Vector2()},uInv:INV});
+let fogLayers=[], fogWall=null;
+function buildFog(){
+  const vs='varying vec3 vW; varying vec2 vUv; void main(){ vUv=uv; vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }';
+  const ground=`uniform float uT,uA,uSeed,uLine,uInv; uniform vec3 uCol,uInk; uniform vec2 uP; varying vec3 vW; ${FOGN}
+    void main(){ vec2 p=vW.xz*.15+uSeed;
+      vec2 q=vec2(fbm(p+vec2(0.,uT*.05)),fbm(p+vec2(5.2,1.3)-uT*.04));
+      float n=fbm(p+2.4*q+vec2(uT*.025,0.));
+      float d=length(vW.xz-uP);
+      float near=smoothstep(.6,3.2,d), edge=1.-smoothstep(22.,30.,d);
+      float a=smoothstep(.3,.68,n)*near*edge*uA;
+      float ln=uLine*(1.-smoothstep(0.,.018,abs(n-.42)))*near*edge; // contorno de tinta nos fiapos
+      vec3 c=mix(uCol,uInk,ln); c=mix(c,1.-c,uInv);
+      gl_FragColor=vec4(c,max(a,ln*.7)); }`;
+  const L=TOUCH?[[.08,.85,0],[.36,.6,.8]]:[[.06,.85,0],[.24,.65,.8],[.5,.45,0]];
+  L.forEach(([y,a,line],i)=>{ const u=FOG_U(); u.uA.value=a; u.uSeed.value=i*7.7; u.uLine.value=line;
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(64,64),new THREE.ShaderMaterial({uniforms:u,vertexShader:vs,fragmentShader:ground,transparent:true,depthWrite:false,side:THREE.DoubleSide,fog:false}));
+    m.rotation.x=-Math.PI/2; m.position.y=y; m.renderOrder=.5; m.userData.y=y; scene.add(m); fogLayers.push(m); });
+  // parede: anel em volta dela (raio 10), densa embaixo e rala em cima; desliza devagar
+  const wall=`uniform float uT,uA,uInv; uniform vec3 uCol; varying vec2 vUv; ${FOGN}
+    void main(){ vec2 p=vec2(vUv.x*38.,vUv.y*3.2);
+      float n=fbm(p+vec2(uT*.06,-uT*.02)+1.7*vec2(fbm(p*.7+uT*.03),fbm(p*.7+3.1)));
+      float a=smoothstep(.2,.6,n)*(1.-smoothstep(.12,.7,vUv.y))*uA;
+      vec3 c=mix(uCol,1.-uCol,uInv); gl_FragColor=vec4(c,a); }`;
+  const u=FOG_U(); u.uA.value=.97;
+  fogWall=new THREE.Mesh(new THREE.CylinderGeometry(10,10,7,48,1,true),new THREE.ShaderMaterial({uniforms:u,vertexShader:vs,fragmentShader:wall,transparent:true,depthWrite:false,side:THREE.BackSide,fog:false}));
+  fogWall.renderOrder=.4; scene.add(fogWall);
+}
+const FOGDARK=new THREE.Color('#202020'), FOGINKV=new THREE.Color('#9a968c'), FOGTINT=new THREE.Color('#aeb0b0');
+function fogTick(wx,wz,base,vs){ // base: cor do papel do momento; vs: 0 olhando em frente .. 1 olhando o vazio
+  const col=base.clone().lerp(FOGTINT,.28).lerp(FOGDARK,vs); FOGCOL.copy(base).lerp(FOGTINT,.28); const ink=new THREE.Color(INK).lerp(FOGINKV,vs);
+  fogLayers.forEach(m=>{ m.position.set(wx,m.userData.y,wz); const U=m.material.uniforms; U.uT.value=t; U.uP.value.set(wx,wz); U.uCol.value.copy(col); U.uInk.value.copy(ink); });
+  if(fogWall){ fogWall.position.set(wx,3.5,wz); const U=fogWall.material.uniforms; U.uT.value=t; U.uCol.value.copy(col); }
+}
+
+// ---------- casa da vovó e lobisomem ----------
+// A casa fica lá no fundo, sempre à frente na trilha. Flores 1-5: surge da neblina (dissolve com ruído) até ficar 100% visível, mas longe;
+// 6-9: vai chegando mais perto; 10: ela chega, o lobisomem sai da porta e a pega. Para não sumir atrás das árvores apagadas pela
+// névoa do horizonte, a casa é desenhada perto (a NEARH) e reduzida na mesma proporção: na tela é igual a estar a D de distância.
+let house=null, wolfman=null, houseD=115, houseVis=0, houseHead=0, houseT=0, FOGCOL=new THREE.Color(PAPER);
+const HOUSE_W=16, NEARH=9.2, HOUSE_D=[115,115,115,115,115,115,82,60,43,30];
+function buildHouse(){
+  if(!CASATEX.casa) return;
+  const C=CASA.casa, H=HOUSE_W*C.h/C.w, geo=new THREE.PlaneGeometry(HOUSE_W,H); geo.translate(0,H/2,0);
+  const mat=new THREE.ShaderMaterial({uniforms:{map:{value:CASATEX.casa},uVis:{value:0},uT:{value:0},uCol:{value:FOGCOL},uInv:INV},side:THREE.DoubleSide,
+    vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
+    fragmentShader:`uniform sampler2D map; uniform float uVis,uT,uInv; uniform vec3 uCol; varying vec2 vUv; ${FOGN}
+      void main(){ vec4 tx=texture2D(map,vUv); float n=fbm(vUv*vec2(7.,5.)+vec2(uT*.06,uT*.02));
+        float base=smoothstep(.0,.22,vUv.y);                       // o pé da casa fica afundado na neblina
+        float a=tx.a*step(n,uVis*1.3-.18+base*.08)*step(.15,base+uVis*.0001);
+        if(a<.5) discard;
+        vec3 c=mix(uCol,tx.rgb,(.25+.75*uVis)*mix(.35,1.,base));    // ainda meio apagada enquanto surge
+        c=mix(c,1.-c,uInv); gl_FragColor=vec4(c,1.); }`});
+  house=new THREE.Mesh(geo,mat); house.visible=false; scene.add(house);
+  // lobisomem: filho da casa (fica na porta, na escala dela); no bote solta da casa e vem para a câmera
+  if(CASATEX.lobPe && CASATEX.lobBote){
+    const L=CASA.lobPe, B=CASA.lobBote, LH=H*.42;
+    const mk=(k,w,h)=>{ const g=new THREE.PlaneGeometry(w,h); g.translate(0,h/2,0); return {g,m:new THREE.MeshBasicMaterial({map:CASATEX[k],alphaTest:.5,side:THREE.DoubleSide,fog:false})}; };
+    const pe=mk('lobPe',LH*L.w/L.h,LH), bote=mk('lobBote',LH*1.05*B.w/B.h,LH*1.05);
+    patchInvert(pe.m); patchInvert(bote.m);
+    wolfman=new THREE.Mesh(pe.g,pe.m); wolfman.userData={pe,bote}; wolfman.visible=false;
+    wolfman.position.set((C.porta[0]-.5)*HOUSE_W,(1-C.porta[1])*H,.05); house.add(wolfman);
+  }
+}
+const _hv=new THREE.Vector3(), _hc=new THREE.Vector3();
+function houseTick(dt,wx,wz){
+  if(!house) return;
+  const final=state==='house';
+  const tgtD=final?13:HOUSE_D[Math.min(9,got)], tgtV=final?1:Math.min(1,got/5);
+  houseD+=(tgtD-houseD)*Math.min(1,dt*(final?1.4:.5)); houseVis+=(tgtV-houseVis)*Math.min(1,dt*.45);
+  house.visible=houseVis>.01;
+  if(!house.visible) return;
+  frameAt(pz,FR); houseHead+=(FR.a-houseHead)*Math.min(1,dt*1.5);
+  // ponto real (longe) e a mesma imagem trazida para perto ao longo do raio da câmera
+  _hv.set(wx-Math.sin(houseHead)*houseD,-1.3,wz-Math.cos(houseHead)*houseD);
+  _hc.copy(_hv).sub(cam.position); const dist=_hc.length(), k=Math.min(1,NEARH/dist);
+  house.position.copy(cam.position).addScaledVector(_hc,k); house.scale.setScalar(k); house.rotation.set(0,houseHead,0);
+  house.material.uniforms.uVis.value=houseVis; house.material.uniforms.uT.value=t;
+}
+function startHouse(){ // 10 flores: chegou na casa
+  if(state!=='play') return; state='house'; houseT=0; musicOn=false; keys.fwd=keys.left=keys.right=false; stickEnd();
+}
+function houseFinal(dt){ // ela anda até a casa, o lobisomem aparece na porta, sai correndo e a pega
+  houseT+=dt; yaw*=Math.pow(.02,dt); lookAmt=Math.max(0,lookAmt-dt*2); progress=Math.max(0,progress-dt*.3);
+  if(houseT<2.6) pz-=1.4*dt*(1-houseT/2.6);
+  const clearD=lerp(40,3.2,Math.min(1,houseT/2.2)); rows.forEach(r=>{ r.g.visible=(pz-r.z)<clearD; }); // a mata se abre numa clareira diante da casa
+  if(!wolfman) { if(houseT>3) over(); return; }
+  const W=wolfman, U=W.userData;
+  if(houseT>2.5 && !W.visible){ W.visible=true; if(AC) sfx.growl(0); }
+  if(houseT>3.6 && W.parent===house){ // bote: solta da casa mantendo onde está na tela
+    house.updateMatrixWorld(); const p=new THREE.Vector3(); W.getWorldPosition(p); const sc=new THREE.Vector3(); W.getWorldScale(sc);
+    house.remove(W); scene.add(W); W.position.copy(p); W.scale.copy(sc); W.geometry=U.bote.g; W.material=U.bote.m;
+    W.material.depthTest=false; W.material.transparent=true; W.material.depthWrite=false; W.renderOrder=10; // passa por cima de tudo, até da neblina U.p0=p.clone(); U.s0=sc.x; U.t0=houseT; if(AC) sfx.roar(); shake=.5;
+  }
+  if(U.t0!==undefined){ const e=Math.min(1,(houseT-U.t0)/.55), q=e*e; // acelera para cima dela
+    const tgt=new THREE.Vector3(cam.position.x,0,cam.position.z).addScaledVector(new THREE.Vector3(-Math.sin(houseHead),0,-Math.cos(houseHead)),.9);
+    const sc=lerp(U.s0,.75,q), hb=W.geometry.parameters.height; W.position.lerpVectors(U.p0,tgt,q); W.position.y=lerp(U.p0.y,cam.position.y-.74*hb*.75,q); W.scale.setScalar(sc); // a cara vem para a altura dos olhos shake=Math.max(shake,.25*q);
+    if(e>=1 && !dying){ const F=$('flash'); F.style.transition='none'; F.style.opacity=.7; requestAnimationFrame(()=>{ F.style.transition='opacity .8s'; F.style.opacity=0; }); if(AC) sfx.rip(); over(); }
+  }
+  W.rotation.set(0,W.parent===house?0:houseHead,0);
+}
+
 function buildWorld(){
   // chão
   const fc=mkCanvas(512,512), g=fc.getContext('2d'); g.fillStyle=PAPER; g.fillRect(0,0,512,512); prep(g); const fr=RNG(5);
   for(let i=0;i<70;i++){ const x=fr()*512, y=fr()*512; line(g,[[x,y],[x+(fr()-.5)*8,y-10-fr()*10]],3); }
   const ft=tex(fc); ft.wrapS=ft.wrapT=THREE.RepeatWrapping;
-  floor=new THREE.Mesh(ribbon(-14,14,14,-TOTAL-40,1,1/4,1/4),new THREE.MeshBasicMaterial({map:ft,side:THREE.DoubleSide})); scene.add(floor);
+  floor=new THREE.Mesh(ribbon(-14,14,14,-LEN-40,1,1/4,1/4),new THREE.MeshBasicMaterial({map:ft,side:THREE.DoubleSide})); scene.add(floor);
   // trilha: sem bordas; só chão pisado (riscos soltos, mais no meio) e um ou outro resto de borda
   const pc=mkCanvas(256,512), pg=pc.getContext('2d'); prep(pg); const prr=RNG(8);
   for(let i=0;i<34;i++){ const u=(prr()+prr()+prr())/3, x=20+u*216, y=prr()*512; line(pg,[[x,y],[x+6+prr()*12,y+(prr()-.5)*6]],2.5+prr()*1.5); }
   for(let i=0;i<10;i++){ const x=30+prr()*196, y=prr()*512; pg.beginPath(); pg.ellipse(x,y,3+prr()*4,2+prr()*3,prr()*3,0,6.3); pg.lineWidth=2.5; pg.strokeStyle=INK; pg.stroke(); }
   for(let i=0;i<6;i++){ const e=prr()<.5, x=e?14+prr()*22:220+prr()*22, y=prr()*512; line(pg,[[x,y],[x+(prr()-.5)*8,y+20+prr()*30]],3.5); }
   const pt=tex(pc); pt.wrapS=pt.wrapT=THREE.RepeatWrapping;
-  const path=new THREE.Mesh(ribbon(-1.8,1.8,14,-TOTAL-40,1,1/3.6,1/7),new THREE.MeshBasicMaterial({map:pt,alphaTest:.5,side:THREE.DoubleSide})); path.position.y=.01; scene.add(path);
+  const path=new THREE.Mesh(ribbon(-1.8,1.8,14,-LEN-40,1,1/3.6,1/7),new THREE.MeshBasicMaterial({map:pt,alphaTest:.5,side:THREE.DoubleSide})); path.position.y=.01; scene.add(path);
   // céu: faixa curva só à frente (o vazio continua dos lados); desenhado primeiro, tudo fica na frente dele
   if(SKYTEX){ const span=2.7, sm=new THREE.MeshBasicMaterial({map:SKYTEX,side:THREE.BackSide,fog:false,depthWrite:false,transparent:false,blending:THREE.CustomBlending,blendSrc:THREE.SrcAlphaFactor,blendDst:THREE.OneMinusSrcAlphaFactor});
     sky=new THREE.Mesh(new THREE.CylinderGeometry(58,58,92,48,1,true,Math.PI-span/2,span),sm); sky.renderOrder=-3; scene.add(sky); }
   // casa
-  house=new THREE.Mesh(new THREE.PlaneGeometry(9,6.75),houseMat); placeOnPath(house,-TOTAL-6,0,3.2); scene.add(house);
+  buildHouse();
   // Chapeuzinho
   red=new THREE.Mesh(new THREE.PlaneGeometry(.95,1.3),new THREE.MeshBasicMaterial({map:redTex,alphaTest:.5,side:THREE.DoubleSide})); scene.add(red);
   arms=[]; if(CAPAIMG.estica && CAPAIMG.puxa){
@@ -365,12 +449,13 @@ function buildWorld(){
     for(const side of [1,-1]){ const m=new THREE.Mesh(E.geo,E.mat); m.userData={E,P,side}; m.scale.x=side; m.visible=false; red.add(m); arms.push(m); }
   }
   // olhos
+  buildFog();
   eyes=new THREE.Mesh(new THREE.PlaneGeometry(11,4.3),eyesMat); eyes.renderOrder=5; eyes.visible=false; scene.add(eyes);
   // garras e flores (nível fixo). A garra fica logo atrás da fileira: sai de trás do tronco da beira.
   const lr=RNG(777), EXT=.3; // parte do braço escondida dentro do tronco (não passa da largura dele)
   let z=-13;
-  while(z>-TOTAL+8){
-    const f=-z/TOTAL, k=Math.round((Z0-z)/ROW_SP), p=rowParams(k), cz=rowZ(k)-.1;
+  while(z>-LEN+8){
+    const f=Math.min(1,-z/TOTAL), k=Math.round((Z0-z)/ROW_SP), p=rowParams(k), cz=rowZ(k)-.1;
     const dbl=f>.35 && lr()<.22+f*.3, sides=dbl?[-1,1]:[lr()<.5?-1:1];
     const warn=lerp(1.25,.85,f);
     sides.forEach(side=>{
@@ -384,7 +469,7 @@ function buildWorld(){
     z-=(15-f*7)*(.8+lr()*.4);
   }
   z=-9; const fgeo=new THREE.PlaneGeometry(.5,.5);
-  while(z>-TOTAL+6){
+  while(z>-LEN+6){
     const k=Math.round((Z0-z)/ROW_SP), p=rowParams(k), side=lr()<.5?-1:1;
     const m=new THREE.Mesh(fgeo,flowerMat), fz=rowZ(k)-.8; placeOnPath(m,fz,side*((side<0?p.inL:p.inR)+.85),.25); scene.add(m);
     flowers.push({m,side,z:fz,got:false,fly:0});
@@ -426,7 +511,7 @@ function buildWorld(){
     wolfFrontMat=new THREE.ShaderMaterial({transparent:false,depthTest:false,depthWrite:false,blending:THREE.CustomBlending,blendSrc:THREE.SrcAlphaFactor,blendDst:THREE.OneMinusSrcAlphaFactor,
       uniforms:Object.assign({},wolfMat.uniforms,{uMul:{value:0}}),vertexShader:wolfMat.vertexShader,fragmentShader:wolfMat.fragmentShader});
     wolfFront=new THREE.Mesh(wolf.geometry,wolfFrontMat); wolfFront.renderOrder=1; wolfFront.visible=false; scene.add(wolfFront);
-    red.renderOrder=2; // a Chapeuzinho fica sempre na frente do lobo
+    red.renderOrder=2; // a Chapeuzinho fica sempre na frente do lobo (e da neblina)
   }
 }
 // uma fileira = um grupo virado para a trilha naquele ponto; recicla para frente quando fica para trás
@@ -434,7 +519,6 @@ function placeRow(row,k){
   row.k=k; const z=rowZ(k); row.z=z; const p=rowParams(k), r=RNG(p.seed), g=row.g;
   while(g.children.length) g.remove(g.children[0]); row.sway.length=0; row.faces.length=0; row.block=[];
   placeOnPath(g,z,0);
-  if(z<-TOTAL-2.5) return; // clareira da casa da vovó
   const f=clamp(-z/TOTAL,0,1);
   const add=(t,amp)=>{ g.add(t); row.sway.push({o:t,b:0,a:amp,ph:r()*6.28,f:.5+r()*.4}); };
   [-1,1].forEach(side=>{
@@ -535,7 +619,7 @@ const sfx={
 
 // ---------- estado ----------
 let state='loading', px=0, pz=0, yaw=0, mouseYaw=0, keyLook=0, progress=0, hp=3, inv=0, got=0, t=0;
-let lookAmt=0, stepAcc=0, walkT=0, boilT=0, boilF=0, redDir=0, shake=0, endT=0, caughtT=0, eyeSide=1, blinkT=3, blink=0, lastRed='';
+let lookAmt=0, stepAcc=0, walkT=0, boilT=0, boilF=0, redDir=0, shake=0, caughtT=0, eyeSide=1, blinkT=3, blink=0, lastRed='';
 let gaitT=0, lastHalf=0, crawlK=0, wShow=0, wGrowl=false, FACESET=[], BLOODSET=[], lightT=12+Math.random()*8, flashP=null, flashT=0, flashK=0, FLASH_ON=false, REDUCE=false, bloodI=0;
 const BLACK=new THREE.Color(0);
 const keys={};
@@ -726,14 +810,11 @@ function update(dt){
     if(hp>=3){ stepAcc+=speed*dt; if(stepAcc>.8){ stepAcc=0; sfx.step(keys.run?1.6:1); } }
     else if(keys.fwd){ const half=Math.floor(gaitT/3.1416); if(half!==lastHalf){ lastHalf=half; if(hp===2) (half%2===0?sfx.step(1):sfx.limp()); else if(half%2===0) sfx.drag(); } }
     if(speed>0) walkT+=dt; else { if(walkT>2.5 && Math.random()<.5){ const t0=AC.currentTime; sfx.echo(t0+.4); sfx.echo(t0+.9); if(Math.random()<.5) sfx.echo(t0+1.4); } walkT=0; }
-    if(pz<-TOTAL){ state='end'; endT=0; }
+    if(pz<-LEN+20) startHouse(); // fim da trilha sem as 10 flores: chega na casa do mesmo jeito
   } else if(state==='caught'){
     caughtT+=dt; yaw+=(eyeSide*-MAXY*.95-yaw)*Math.min(1,dt*5); lookAmt=1;
     if(caughtT>1.3 && !dying) over();
-  } else if(state==='end'){
-    endT+=dt; pz-=1.2*dt; yaw*=.95; lookAmt=0;
-    $('fade').style.opacity=clamp((endT-1)/2,0,1);
-    if(endT>3.2 && $('end').classList.contains('hide')) showEnd();
+  } else if(state==='house'){ houseFinal(dt);
   } else if(state==='torn'){ yaw*=.95; }
   inv=Math.max(0,inv-dt); shake=Math.max(0,shake-dt);
   // trovão: de tempos em tempos a tela pisca invertida, rostos nas árvores, sangue no chão
@@ -786,7 +867,7 @@ function update(dt){
     f.m.rotation.y=Y;
     if(f.got){ if(f.fly<1){ f.fly+=dt*2.5; f.m.position.lerp(new THREE.Vector3(wx,.8,wz),Math.min(1,f.fly)); f.m.scale.setScalar(Math.max(.01,1-f.fly)); if(f.fly>=1) f.m.visible=false; } return; }
     const looking=f.side<0?yaw>.5:yaw<-.5;
-    if(state==='play' && Math.abs(pz-f.z)<.9 && px*f.side>.45 && looking){ f.got=true; got++; $('fl').textContent=got; sfx.chime(); }
+    if(state==='play' && Math.abs(pz-f.z)<.9 && px*f.side>.45 && looking){ f.got=true; got++; $('fl').textContent=got; sfx.chime(); if(got>=10) startHouse(); }
   });
   // olhos
   const dist=state==='caught'?lerp(3,.9,Math.min(1,caughtT/1.2)):70-progress*67;
@@ -822,18 +903,18 @@ function update(dt){
   if(sky){ sky.position.set(wx,42,wz); sky.rotation.y=heading; sky.material.opacity=1-(state==='caught'?1:lookAmt*lookAmt*(3-2*lookAmt)); }
   // vazio: o fundo vai do papel ao preto conforme ela vira a cabeça (sem borda dura); no clarão, inverte
   const vz=state==='caught'?1:lookAmt, vs=vz*vz*(3-2*vz);
-  scene.background.copy(pc).lerp(BLACK,vs); if(flashK>0){ const B=scene.background; B.setRGB(lerp(B.r,1-B.r,flashK),lerp(B.g,1-B.g,flashK),lerp(B.b,1-B.b,flashK)); }
+  scene.background.copy(pc).lerp(BLACK,vs); fogTick(wx,wz,pc,vs); houseTick(dt,wx,wz); if(flashK>0){ const B=scene.background; B.setRGB(lerp(B.r,1-B.r,flashK),lerp(B.g,1-B.g,flashK),lerp(B.b,1-B.b,flashK)); }
   // traço tremendo
   boilT+=dt; if(boilT>.2){ boilT=0; boilF=(boilF+1)%3; boilers.forEach(b=>b.mat.map=b.frames[boilF]); lastRed=''; }
   // Chapeuzinho
   const dir=yaw>.5?-1:(yaw<-.5?1:0);
   const reach=hp===1&&!arms.length?(Math.sin(gaitT)>0?1:0):0, key=dir+'|'+hp+'|'+boilF+'|'+reach;
   if(key!==lastRed){ lastRed=key; drawRed(dir,hp,boilF*11+3,2.2,reach); }
-  crawlK+=((hp===1&&state!=='end'?1:0)-crawlK)*Math.min(1,dt*3);
+  crawlK+=((hp===1&&state!=='house'?1:0)-crawlK)*Math.min(1,dt*3);
   let bob=speed>0?Math.abs(Math.sin(t*speed*3.4))*.03:0, tilt=0;
   if(hp===2&&keys.fwd&&state==='play'){ const sn=Math.sin(gaitT); bob=.05*sn; tilt=.065*sn-.02; } // mancando: sobe na perna boa, afunda na ferida, sempre no mesmo ritmo
   if(hp===1){ const mv=keys.fwd&&state==='play'; bob=mv?.012*Math.sin(gaitT*2):0; tilt=mv?.03*Math.sin(gaitT):0; }
-  armsTick(hp===1&&state!=='end');
+  armsTick(hp===1&&state!=='house');
   const jit=inv>0?Math.sin(t*50)*.03:0;
   red.position.set(wx+jit*FR.c,.65+bob-.06*crawlK,wz-jit*FR.s); red.rotation.z=tilt;
   red.rotation.y=Y; red.visible=!(inv>0&&Math.floor(t*12)%2===0);
@@ -871,12 +952,6 @@ function armsTick(on){
     if(pose===E){ m.scale.x=-side; m.rotation.z=-side*(.98-rot); } else { m.scale.x=-side; m.rotation.z=side*(rot*.8-2.45); }
     const P_=pose===P; m.position.set(side*(SH_X+(P_?.04:0)), SH_Y+dy, -.004); // atrás do corpo: ombro some sob o capuz
   }
-}
-function showEnd(){ $('pbtn').classList.add('hide'); stickEnd();
-  $('end').classList.remove('hide'); $('hud').classList.add('hide'); if(document.exitPointerLock) document.exitPointerLock();
-  $('endstats').textContent=`Flores colhidas: ${got} de ${flowers.length} · capa: ${['','um farrapo','rasgada','inteira'][hp]}`;
-  const ps=[...document.querySelectorAll('#endtxt p')]; ps.forEach((p,i)=>setTimeout(()=>p.classList.add('on'),400+i*1500));
-  musicOn=false;
 }
 
 // ---------- início ----------
