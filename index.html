@@ -37,12 +37,12 @@
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126173953"></script>
-<script src="lobo.js?v=20261126173953"></script>
-<script src="ceu.js?v=20261126173953"></script>
-<script src="capa.js?v=20261126173953"></script>
-<script src="casa.js?v=20261126173953"></script>
-<script src="lobocorpo.js?v=20261126173953"></script>
+<script src="arte.js?v=20261126174103"></script>
+<script src="lobo.js?v=20261126174103"></script>
+<script src="ceu.js?v=20261126174103"></script>
+<script src="capa.js?v=20261126174103"></script>
+<script src="casa.js?v=20261126174103"></script>
+<script src="lobocorpo.js?v=20261126174103"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -861,7 +861,7 @@ function update(dt){
   } else if(state==='torn'){ yaw*=.95; }
   inv=Math.max(0,inv-dt); shake=Math.max(0,shake-dt);
   // trovão: de tempos em tempos a tela pisca invertida, rostos nas árvores, sangue no chão
-  if(state==='play'){ lightT-=dt; if(lightT<=0){ lightning(); lightT=8.9+Math.random()*10; } } // trovões 80% mais frequentes (média ~14 s)
+  if(state==='play'){ lightT-=dt; if(lightT<=0){ lightning(); lightT=5+Math.random()*12; } } // trovão a cada 5–17 s
   flashK=0;
   if(flashP){ flashT+=dt; let a=0, k=-1;
     for(const [v,dur] of flashP.seg){ if(flashT<a+dur){ k=v; break; } a+=dur; }
