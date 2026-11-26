@@ -37,11 +37,12 @@
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126155105"></script>
-<script src="lobo.js?v=20261126155105"></script>
-<script src="ceu.js?v=20261126155105"></script>
-<script src="capa.js?v=20261126155105"></script>
-<script src="casa.js?v=20261126155105"></script>
+<script src="arte.js?v=20261126161504"></script>
+<script src="lobo.js?v=20261126161504"></script>
+<script src="ceu.js?v=20261126161504"></script>
+<script src="capa.js?v=20261126161504"></script>
+<script src="casa.js?v=20261126161504"></script>
+<script src="lobocorpo.js?v=20261126161504"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -136,7 +137,7 @@ function boilMat(frames,opts){ const m=new THREE.MeshBasicMaterial(Object.assign
 
 // ---------- arte do Flow: peças recortadas (demo/arte.js, gerado por arte/cortar_pecas.py) ----------
 const LW=9;
-let arms=[], CASATEX={}, WOLFTEX=null, SKYTEX=null; const CAPAIMG={}; // capa de costas e braços (demo/capa.js)
+let arms=[], CASATEX={}, BODYTEX=null, wolfBody=null, WOLFTEX=null, SKYTEX=null; const CAPAIMG={}; // capa de costas e braços (demo/capa.js)
 const PECAS={}; // categoria -> peças {w,h,px,py,asp,geo,mat,...}
 function loadPecas(){
   if(!window.ARTE) return Promise.reject(new Error('arte.js não carregou'));
@@ -144,7 +145,8 @@ function loadPecas(){
   const ceu=window.CEU?new Promise(ok=>{ const im=new Image(); im.onload=()=>{ SKYTEX=new THREE.Texture(im); SKYTEX.wrapS=THREE.RepeatWrapping; SKYTEX.repeat.x=-1; SKYTEX.offset.x=1; SKYTEX.anisotropy=ANISO; SKYTEX.needsUpdate=true; ok(); }; im.onerror=()=>ok(); im.src=CEU.src; }):Promise.resolve();
   const capa=window.CAPA?Promise.all(Object.keys(CAPA).map(k=>new Promise(ok=>{ const im=new Image(); im.onload=()=>{ CAPAIMG[k]=im; ok(); }; im.onerror=()=>ok(); im.src=CAPA[k].src; }))):Promise.resolve();
   const casa=window.CASA?Promise.all(Object.keys(CASA).map(k=>new Promise(ok=>{ const im=new Image(); im.onload=()=>{ const t=new THREE.Texture(im); t.anisotropy=ANISO; t.needsUpdate=true; CASATEX[k]=t; ok(); }; im.onerror=()=>ok(); im.src=CASA[k].src; }))):Promise.resolve();
-  return Promise.all([lobo,ceu,capa,casa].concat(ARTE.map(p=>new Promise((ok,fail)=>{ const im=new Image(); im.onload=()=>{ if(!p.srcRosto) return ok([p,im]); const i2=new Image(); i2.onload=()=>ok([p,im,i2]); i2.onerror=fail; i2.src=p.srcRosto; }; im.onerror=fail; im.src=p.src; })))).then(list=>{ list.splice(0,4);
+  const corpo=window.LOBOCORPO?new Promise(ok=>{ const im=new Image(); im.onload=()=>{ BODYTEX=new THREE.Texture(im); BODYTEX.needsUpdate=true; ok(); }; im.onerror=()=>ok(); im.src=LOBOCORPO.src; }):Promise.resolve();
+  return Promise.all([lobo,ceu,capa,casa,corpo].concat(ARTE.map(p=>new Promise((ok,fail)=>{ const im=new Image(); im.onload=()=>{ if(!p.srcRosto) return ok([p,im]); const i2=new Image(); i2.onload=()=>ok([p,im,i2]); i2.onerror=fail; i2.src=p.srcRosto; }; im.onerror=fail; im.src=p.src; })))).then(list=>{ list.splice(0,5);
     list.forEach(([p,im,im2])=>{
       let src=im;
       if(p.cat==='garra'){ // garra invertida (miolo preto, traço claro): salta da floresta branca
@@ -355,27 +357,24 @@ const FOGDARK=new THREE.Color('#202020'), FOGINKV=new THREE.Color('#9a968c'), FO
 function fogTick(wx,wz,base,vs){ // base: cor do papel do momento; vs: 0 olhando em frente .. 1 olhando o vazio
   const col=base.clone().lerp(FOGTINT,.28).lerp(FOGDARK,vs); FOGCOL.copy(base).lerp(FOGTINT,.28); const ink=new THREE.Color(INK).lerp(FOGINKV,vs);
   fogLayers.forEach(m=>{ m.position.set(wx,m.userData.y,wz); const U=m.material.uniforms; U.uT.value=t; U.uP.value.set(wx,wz); U.uCol.value.copy(col); U.uInk.value.copy(ink); });
-  if(fogWall){ fogWall.position.set(wx,3.5,wz); const U=fogWall.material.uniforms; U.uT.value=t; U.uCol.value.copy(col); }
+  if(fogWall){ fogWall.position.set(wx,3.5,wz); const U=fogWall.material.uniforms; U.uT.value=t; U.uCol.value.copy(col); U.uA.value=.97*(1-.75*vs); } // no vazio a parede afina: o corpo do lobo aparece atrás dela
 }
 
 // ---------- casa da vovó e lobisomem ----------
-// A casa fica lá no fundo, sempre à frente na trilha. Flores 1-5: surge da neblina (dissolve com ruído) até ficar 100% visível, mas longe;
-// 6-9: vai chegando mais perto; 10: ela chega, o lobisomem sai da porta e a pega. Para não sumir atrás das árvores apagadas pela
-// névoa do horizonte, a casa é desenhada perto (a NEARH) e reduzida na mesma proporção: na tela é igual a estar a D de distância.
-let house=null, wolfman=null, houseD=115, houseVis=0, houseHead=0, houseT=0, FOGCOL=new THREE.Color(PAPER);
-const HOUSE_W=16, NEARH=9.2, HOUSE_D=[115,115,115,115,115,115,82,60,43,30];
+// A casa fica na trilha, de verdade, logo atrás da última fileira de árvores (as árvores da frente a tapam).
+// Flores 1-5: aparece INTEIRA, de 60% transparente (1ª flor) a opaca (5ª), sempre lá atrás da última árvore;
+// 6-9: vai chegando mais perto; 10: ela chega, o lobisomem sai da porta e a pega.
+let house=null, wolfman=null, houseNear=24, houseS=.5, houseD=24, houseVis=0, houseHead=0, houseT=0, FOGCOL=new THREE.Color(PAPER);
+const HOUSE_W=16, HOUSE_D=[24,24,24,24,24,24,20,17,14.5,12.5], HOUSE_S=[.5,.5,.5,.5,.5,.5,.62,.75,.88,1]; // distância e tamanho (pequena = parece mais longe) // a casa vira o fim da floresta: as fileiras depois dela não são montadas
 function buildHouse(){
   if(!CASATEX.casa) return;
   const C=CASA.casa, H=HOUSE_W*C.h/C.w, geo=new THREE.PlaneGeometry(HOUSE_W,H); geo.translate(0,H/2,0);
-  const mat=new THREE.ShaderMaterial({uniforms:{map:{value:CASATEX.casa},uVis:{value:0},uT:{value:0},uCol:{value:FOGCOL},uInv:INV},side:THREE.DoubleSide,
+  const mat=new THREE.ShaderMaterial({uniforms:{map:{value:CASATEX.casa},uVis:{value:0},uInv:INV},side:THREE.DoubleSide,transparent:true,depthWrite:false,
     vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-    fragmentShader:`uniform sampler2D map; uniform float uVis,uT,uInv; uniform vec3 uCol; varying vec2 vUv; ${FOGN}
-      void main(){ vec4 tx=texture2D(map,vUv); float n=fbm(vUv*vec2(7.,5.)+vec2(uT*.06,uT*.02));
-        float base=smoothstep(.0,.22,vUv.y);                       // o pé da casa fica afundado na neblina
-        float a=tx.a*step(n,uVis*1.3-.18+base*.08)*step(.15,base+uVis*.0001);
-        if(a<.5) discard;
-        vec3 c=mix(uCol,tx.rgb,(.25+.75*uVis)*mix(.35,1.,base));    // ainda meio apagada enquanto surge
-        c=mix(c,1.-c,uInv); gl_FragColor=vec4(c,1.); }`});
+    fragmentShader:`uniform sampler2D map; uniform float uVis,uInv; varying vec2 vUv;
+      void main(){ vec4 tx=texture2D(map,vUv); if(tx.a<.5) discard;
+        float a=uVis*mix(.35,1.,smoothstep(.0,.2,vUv.y)); // casa inteira, só a opacidade muda; o pé some na neblina
+        vec3 c=mix(tx.rgb,1.-tx.rgb,uInv); gl_FragColor=vec4(c,a); }`});
   house=new THREE.Mesh(geo,mat); house.visible=false; scene.add(house);
   // lobisomem: filho da casa (fica na porta, na escala dela); no bote solta da casa e vem para a câmera
   if(CASATEX.lobPe && CASATEX.lobBote){
@@ -387,20 +386,28 @@ function buildHouse(){
     wolfman.position.set((C.porta[0]-.5)*HOUSE_W,(1-C.porta[1])*H,.05); house.add(wolfman);
   }
 }
-const _hv=new THREE.Vector3(), _hc=new THREE.Vector3();
 function houseTick(dt,wx,wz){
   if(!house) return;
   const final=state==='house';
-  const tgtD=final?13:HOUSE_D[Math.min(9,got)], tgtV=final?1:Math.min(1,got/5);
-  houseD+=(tgtD-houseD)*Math.min(1,dt*(final?1.4:.5)); houseVis+=(tgtV-houseVis)*Math.min(1,dt*.45);
+  const gi=Math.min(9,got), tgtD=final?11:HOUSE_D[gi], tgtS=final?1:HOUSE_S[gi];
+  houseS+=(tgtS-houseS)*Math.min(1,dt*(final?1.4:.6));
+  const tgtV=final?1:(got>0?.4+.6*Math.min(1,(got-1)/4):0);   // 60% transparente na 1ª flor, opaca na 5ª
+  houseD+=(tgtD-houseD)*Math.min(1,dt*(final?1.4:.6)); houseVis+=(tgtV-houseVis)*Math.min(1,dt*.8);
   house.visible=houseVis>.01;
+  // a última árvore montada fica logo à frente da casa (as de trás, já sumidas na névoa, não tapam a casa)
   if(!house.visible) return;
-  frameAt(pz,FR); houseHead+=(FR.a-houseHead)*Math.min(1,dt*1.5);
-  // ponto real (longe) e a mesma imagem trazida para perto ao longo do raio da câmera
-  _hv.set(wx-Math.sin(houseHead)*houseD,-1.3,wz-Math.cos(houseHead)*houseD);
-  _hc.copy(_hv).sub(cam.position); const dist=_hc.length(), k=Math.min(1,NEARH/dist);
-  house.position.copy(cam.position).addScaledVector(_hc,k); house.scale.setScalar(k); house.rotation.set(0,houseHead,0);
-  house.material.uniforms.uVis.value=houseVis; house.material.uniforms.uT.value=t;
+  frameAt(pz,FR); houseHead+=(FR.a-houseHead)*Math.min(1,dt*.8); // sempre lá na frente, no rumo da trilha (vira devagar nas curvas)
+  // fica logo atrás da última árvore que fecha o corredor da trilha na direção do olhar (as árvores da frente a tapam
+  // de verdade); mais perto que o nominal, encolhe na mesma proporção, então o tamanho na tela não muda
+  let dist=houseD;
+  if(!final){ const cx=cam.position.x, cz=cam.position.z, tn=Math.tan(houseHead), ff={};
+    let hit=Infinity; for(const r of rows){ const tt=cz-r.z; if(tt<1.5||tt>=hit) continue;
+      frameAt(r.z,ff); const lat=(cx-tn*tt-ff.x)*ff.c;
+      if(Math.abs(lat)>1.75 || r.block.some(b=>lat>b[0]-.15&&lat<b[1]+.15)) hit=tt; }
+    houseNear+=(clamp(hit+1.3,6,houseD)-houseNear)*Math.min(1,dt*3); dist=Math.min(houseD,houseNear); }
+  const k=dist/houseD;
+  house.position.set(cam.position.x-Math.sin(houseHead)*dist,cam.position.y+((final?-2:-.3)-cam.position.y)*k,cam.position.z-Math.cos(houseHead)*dist); // no raio da câmera até o ponto distante: na tela fica sempre no mesmo lugar house.rotation.set(0,houseHead,0); house.scale.setScalar(houseS*k);
+  house.material.uniforms.uVis.value=houseVis;
 }
 function startHouse(){ // 10 flores: chegou na casa
   if(state!=='play') return; state='house'; houseT=0; musicOn=false; keys.fwd=keys.left=keys.right=false; stickEnd();
@@ -408,7 +415,7 @@ function startHouse(){ // 10 flores: chegou na casa
 function houseFinal(dt){ // ela anda até a casa, o lobisomem aparece na porta, sai correndo e a pega
   houseT+=dt; yaw*=Math.pow(.02,dt); lookAmt=Math.max(0,lookAmt-dt*2); progress=Math.max(0,progress-dt*.3);
   if(houseT<2.6) pz-=1.4*dt*(1-houseT/2.6);
-  const clearD=lerp(40,3.2,Math.min(1,houseT/2.2)); rows.forEach(r=>{ r.g.visible=(pz-r.z)<clearD; }); // a mata se abre numa clareira diante da casa
+  const clearD=lerp(40,1.2,Math.min(1,houseT/2.2)); rows.forEach(r=>{ r.g.visible=(pz-r.z)<clearD; }); // a mata se abre numa clareira diante da casa
   if(!wolfman) { if(houseT>3) over(); return; }
   const W=wolfman, U=W.userData;
   if(houseT>2.5 && !W.visible){ W.visible=true; if(AC) sfx.growl(0); }
@@ -515,6 +522,17 @@ function buildWorld(){
       uniforms:Object.assign({},wolfMat.uniforms,{uMul:{value:0}}),vertexShader:wolfMat.vertexShader,fragmentShader:wolfMat.fragmentShader});
     wolfFront=new THREE.Mesh(wolf.geometry,wolfFrontMat); wolfFront.renderOrder=1; wolfFront.visible=false; scene.add(wolfFront);
     red.renderOrder=2; // a Chapeuzinho fica sempre na frente do lobo (e da neblina)
+    if(BODYTEX){ // corpo do lobo: sai do breu a partir do pescoço, para baixo, conforme ele chega; desenhado antes da cabeça
+      wolfBody=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.ShaderMaterial({transparent:false,depthTest:false,depthWrite:false,blending:THREE.CustomBlending,blendSrc:THREE.SrcAlphaFactor,blendDst:THREE.OneMinusSrcAlphaFactor,
+        uniforms:{map:{value:BODYTEX},uRev:{value:0},uOp:{value:0},uT:{value:0},uInv:INV},vertexShader:wolfMat.vertexShader,
+        fragmentShader:`uniform sampler2D map; uniform float uRev,uOp,uT,uInv; varying vec2 vUv;
+          void main(){ vec4 tx=texture2D(map,vUv);
+            float n=(sin(vUv.x*29.+uT*1.2)*sin(vUv.y*23.-uT)+sin(vUv.x*61.-uT*1.7)*.5)*.04;
+            float r=mix(-.15,1.3,uRev), d=length((vUv-vec2(.5,1.))*vec2(1.,1.1));
+            float m=1.-smoothstep(r-.22,r,d+n);
+            vec3 P=vec3(.97,.96,.93), lo=mix(vec3(0.),P,uInv), hi=mix(P,vec3(.03),uInv);
+            gl_FragColor=vec4(mix(lo,hi,tx.r),tx.a*m*uOp); }`}));
+      wolfBody.renderOrder=-1.05; wolfBody.visible=false; scene.add(wolfBody); }
   }
 }
 // uma fileira = um grupo virado para a trilha naquele ponto; recicla para frente quando fica para trás
@@ -566,7 +584,7 @@ function placeRow(row,k){
 }
 
 // ---------- áudio ----------
-let AC=null; const A={};
+let AC=null; const A={}; const WOLF_MIN=13; // distância mais perto do lobo antes do bote
 function audioInit(){
   AC=new (window.AudioContext||window.webkitAudioContext)();
   const comp=AC.createDynamicsCompressor(); comp.connect(AC.destination);
@@ -580,6 +598,13 @@ function audioInit(){
   const b=noiseSrc(true), bf=AC.createBiquadFilter(); bf.type='bandpass'; bf.frequency.value=360; bf.Q.value=1.3; A.breath=AC.createGain(); A.breath.gain.value=0; b.connect(bf); bf.connect(A.breath); A.breath.connect(A.master); b.start();
   const rn=noiseSrc(true), rh=AC.createBiquadFilter(); rh.type='highpass'; rh.frequency.value=1100; const rl=AC.createBiquadFilter(); rl.type='lowpass'; rl.frequency.value=6500;
   A.rain=AC.createGain(); A.rain.gain.value=.08; rn.connect(rh); rh.connect(rl); rl.connect(A.rain); A.rain.connect(A.master); rn.start();
+  { // rosnado baixo em loop: ruído grave + serra a ~50 Hz, com tremor rápido (a garganta) — volume controlado por quadro
+    const gn=noiseSrc(true), gb=AC.createBiquadFilter(); gb.type='bandpass'; gb.frequency.value=190; gb.Q.value=2.5;
+    const go=AC.createOscillator(); go.type='sawtooth'; go.frequency.value=52; const gl=AC.createBiquadFilter(); gl.type='lowpass'; gl.frequency.value=260;
+    const og=AC.createGain(); og.gain.value=.35; const trem=AC.createGain(); trem.gain.value=.55;
+    const lfo=AC.createOscillator(); lfo.frequency.value=11; const lg=AC.createGain(); lg.gain.value=.45; lfo.connect(lg); lg.connect(trem.gain);
+    gn.connect(gb); gb.connect(trem); go.connect(gl); gl.connect(og); og.connect(trem);
+    A.growl=AC.createGain(); A.growl.gain.value=0; A.growlO=go; A.growlL=lfo; trem.connect(A.growl); A.growl.connect(A.master); gn.start(); go.start(); lfo.start(); }
   A.next=AC.currentTime+.8; A.step=0;
 }
 function noiseSrc(loop){ const s=AC.createBufferSource(); s.buffer=A.noise; s.loop=loop; return s; }
@@ -623,7 +648,7 @@ const sfx={
 // ---------- estado ----------
 let state='loading', px=0, pz=0, yaw=0, mouseYaw=0, keyLook=0, progress=0, hp=3, inv=0, got=0, t=0;
 let lookAmt=0, stepAcc=0, walkT=0, boilT=0, boilF=0, redDir=0, shake=0, caughtT=0, eyeSide=1, blinkT=3, blink=0, lastRed='';
-let gaitT=0, lastHalf=0, crawlK=0, wShow=0, wGrowl=false, FACESET=[], BLOODSET=[], lightT=12+Math.random()*8, flashP=null, flashT=0, flashK=0, FLASH_ON=false, REDUCE=false, bloodI=0;
+let stillT=0, wolfNear=false, gaitT=0, lastHalf=0, crawlK=0, wShow=0, wGrowl=false, FACESET=[], BLOODSET=[], lightT=12+Math.random()*8, flashP=null, flashT=0, flashK=0, FLASH_ON=false, REDUCE=false, bloodI=0;
 const BLACK=new THREE.Color(0);
 const keys={};
 const KEYMAP={KeyW:'fwd',ArrowUp:'fwd',KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right',ShiftLeft:'run',ShiftRight:'run'}; // setas = WASD; olhar: mouse ou Q/E
@@ -814,7 +839,11 @@ function update(dt){
     const target= touchYaw!==null ? touchYaw : keyLook!==0 ? keyLook*MAXY : mouseYaw; if(keyLook!==0) mouseYaw=yaw;
     yaw+=(target-yaw)*Math.min(1,dt*7);
     lookAmt=clamp((Math.abs(yaw)-.3)/.9,0,1);
-    if(Math.abs(yaw)>.3){ progress=Math.min(1,progress+(.012+.05*lookAmt)*1.4*dt); eyeSide=yaw>0?-1:1; if(progress>=1) caught(); } // lobo chega 40% mais rápido
+    // o lobo se aproxima quando ela olha para o vazio (40% mais rápido que o original) e também sempre que fica parada (um pouco menos)
+    stillT=speed>0?0:stillT+dt;
+    let wRate=0; if(Math.abs(yaw)>.3){ wRate=(.012+.05*lookAmt)*1.4; eyeSide=yaw>0?-1:1; }
+    if(stillT>0) wRate=Math.max(wRate,.045*1.4*Math.min(1,stillT/.6));
+    wolfNear=wRate>0; if(wRate>0){ progress=Math.min(1,progress+wRate*dt); if(progress>=1) caught(); }
     // passos
     if(hp>=3){ stepAcc+=speed*dt; if(stepAcc>.8){ stepAcc=0; sfx.step(keys.run?1.6:1); } }
     else if(keys.fwd){ const half=Math.floor(gaitT/3.1416); if(half!==lastHalf){ lastHalf=half; if(hp===2) (half%2===0?sfx.step(1):sfx.limp()); else if(half%2===0) sfx.drag(); } }
@@ -888,17 +917,22 @@ function update(dt){
       if(wShow>.35 && !wGrowl){ wGrowl=true; if(AC) sfx.growl(eyeSide*.7); }
     } else if(state==='caught'){ wShow=1; }
     const sm=(a,b,x)=>{ const u=clamp((x-a)/(b-a),0,1); return u*u*(3-2*u); };
-    const wd=state==='caught'?lerp(2.6,.9,Math.min(1,caughtT/1.1)):3+67*Math.pow(1-wShow,1.5);
+    const wd=state==='caught'?lerp(WOLF_MIN,2.4,Math.pow(Math.min(1,caughtT/1.1),2)):WOLF_MIN+(70-WOLF_MIN)*Math.pow(1-wShow,1.5);
     const lu=0;
-    const S=8.5*(1+.018*Math.sin(t*2.3)+.04*lu), sway=Math.sin(t*.5)*.6*(1-wShow*.6), el=eyeSide*wd+sway*0;
-    const ey=(state==='caught'?1.6:2.5+.5*wShow*wShow+Math.sin(t*2.3)*.05-.35*lu)-(LOBO.ey-.5)*S; // perto, a cabeça sobe acima da copa
+    const bRev=state==='caught'?1:sm(.5,.95,wShow); // corpo aparece depois dos dentes; a cabeça sobe para caber o corpo embaixo
+    const S=8.5*(1-.18*bRev)*(1+.018*Math.sin(t*2.3)+.04*lu), sway=Math.sin(t*.5)*.6*(1-wShow*.6), el=eyeSide*wd+sway*0;
+    const eBase=2.5+.5*wShow*wShow+5.2*bRev, ce=Math.min(1,caughtT/1.1);
+    const ey=(state==='caught'?lerp(8.2,1.6,ce*ce):eBase+Math.sin(t*2.3)*.05-.35*lu)-(LOBO.ey-.5)*S;
     const U=wolfMat.uniforms; U.uOp.value=op; U.uR2.value=state==='caught'?1:sm(.38,.62,wShow); U.uR3.value=state==='caught'?1:sm(.72,.97,wShow);
     U.uT.value=t; U.uBlink.value=blink>0?1:0; U.uGlow.value=.7+.3*Math.sin(t*3.1);
     wolf.visible=op>.01; wolf.scale.set(S,S,1);
     const fx=-FR.s, fz=-FR.c, lat=(LOBO.ex-.5)*S; // à frente na trilha + de lado; balança devagar para passar atrás dos troncos
     wolf.position.set(wx+FR.c*(el-lat)+fx*(.3+sway), ey, wz-FR.s*(el-lat)+fz*(.3+sway)); wolf.lookAt(cam.position);
     wolf.rotateZ(Math.sin(t*.9)*.03-lu*.04*eyeSide);
-    const fr=state==='caught'?1:sm(.45,.8,wShow); U.uMul.value=1-fr; wolfFrontMat.uniforms.uMul.value=fr;
+    const fr=state==='caught'?sm(.2,.7,caughtT):0; U.uMul.value=1-fr; wolfFrontMat.uniforms.uMul.value=fr; // sempre por entre as árvores; só no bote final passa por cima
+    if(wolfBody){ const top=wolf.position.y-.28*S, feet=-1.2, BH=Math.max(.1,top-feet), BW=BH*LOBOCORPO.w/LOBOCORPO.h;
+      wolfBody.visible=wolf.visible&&bRev>.01&&state!=='caught'; wolfBody.scale.set(BW,BH,1); wolfBody.position.set(wolf.position.x,(top+feet)/2,wolf.position.z); wolfBody.quaternion.copy(wolf.quaternion);
+      const B=wolfBody.material.uniforms; B.uRev.value=bRev; B.uOp.value=op; B.uT.value=t; }
     wolfFront.visible=wolf.visible&&fr>.01; wolfFront.position.copy(wolf.position); wolfFront.quaternion.copy(wolf.quaternion); wolfFront.scale.copy(wolf.scale);
   }
   eyesMat.opacity=wolf?0:op; eyes.visible=!wolf&&op>.01;
@@ -944,6 +978,8 @@ function update(dt){
     const br=progress>.04?(.02+.4*progress)*(.3+.7*lookAmt):0;
     A.breath.gain.setTargetAtTime(br*Math.pow(Math.max(0,Math.sin(t*1.45)),2),n,.05);
     A.wind.gain.setTargetAtTime(.025+.045*wind,n,.3);
+    if(A.growl){ const on=state==='play'&&wolfNear; A.growl.gain.setTargetAtTime(on?(.035+.05*progress)*(.6+.4*Math.pow(Math.sin(t*1.1),2)):0,n,on?.4:.25);
+      A.growlO.frequency.setTargetAtTime(47+5*Math.sin(t*2.3)+3*Math.sin(t*5.1),n,.1); A.growlL.frequency.setTargetAtTime(9+3*Math.sin(t*.9),n,.2); }
     if(Math.random()<dt*7) burst({dur:.02,type:'bandpass',f:2200+Math.random()*3000,q:4,gain:.03+Math.random()*.05,pan:Math.random()*2-1}); // pingos
   }
 }
