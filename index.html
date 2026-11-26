@@ -36,8 +36,9 @@
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126114509"></script>
-<script src="lobo.js?v=20261126114509"></script>
+<script src="arte.js?v=20261126120339"></script>
+<script src="lobo.js?v=20261126120339"></script>
+<script src="ceu.js?v=20261126120339"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -137,8 +138,11 @@ scene.background=new THREE.Color(0x000000);
 scene.fog=new THREE.Fog(PAPER,12,52);
 const cam=new THREE.PerspectiveCamera(66,innerWidth/innerHeight,0.05,200);
 // tela em pé: abre o campo de visão vertical para a largura não ficar estreita demais
+let CAMR=1.05; // distância da câmera atrás dela
 function fitCam(){ renderer.setSize(innerWidth,innerHeight); const a=innerWidth/innerHeight; cam.aspect=a;
-  cam.fov=a<1.2?Math.min(100,2*Math.atan(Math.tan(33*Math.PI/180)*1.2/a)*180/Math.PI):66; cam.updateProjectionMatrix(); }
+  if(a<1){ cam.fov=80; CAMR=.75; } // em pé: câmera mais perto, só a parte de cima dela
+  else { cam.fov=a<1.2?Math.min(100,2*Math.atan(Math.tan(33*Math.PI/180)*1.2/a)*180/Math.PI):66; CAMR=1.05; }
+  cam.updateProjectionMatrix(); }
 fitCam(); addEventListener('resize',fitCam);
 const ANISO=renderer.capabilities.getMaxAnisotropy();
 function tex(c){ const t=new THREE.CanvasTexture(c); t.anisotropy=ANISO; return t; }
@@ -152,13 +156,14 @@ function boilMat(frames,opts){ const m=new THREE.MeshBasicMaterial(Object.assign
 
 // ---------- arte do Flow: peças recortadas (demo/arte.js, gerado por arte/cortar_pecas.py) ----------
 const LW=9;
-let WOLFTEX=null;
+let WOLFTEX=null, SKYTEX=null;
 const PECAS={}; // categoria -> peças {w,h,px,py,asp,geo,mat,...}
 function loadPecas(){
   if(!window.ARTE) return Promise.reject(new Error('arte.js não carregou'));
   const lobo=window.LOBO?new Promise(ok=>{ const im=new Image(); im.onload=()=>{ WOLFTEX=new THREE.Texture(im); WOLFTEX.needsUpdate=true; ok(); }; im.onerror=()=>ok(); im.src=LOBO.src; }):Promise.resolve();
-  return Promise.all([lobo].concat(ARTE.map(p=>new Promise((ok,fail)=>{ const im=new Image(); im.onload=()=>ok([p,im]); im.onerror=fail; im.src=p.src; })))).then(list=>{ list.shift();
-    list.forEach(([p,im])=>{
+  const ceu=window.CEU?new Promise(ok=>{ const im=new Image(); im.onload=()=>{ SKYTEX=new THREE.Texture(im); SKYTEX.wrapS=THREE.RepeatWrapping; SKYTEX.repeat.x=-1; SKYTEX.offset.x=1; SKYTEX.anisotropy=ANISO; SKYTEX.needsUpdate=true; ok(); }; im.onerror=()=>ok(); im.src=CEU.src; }):Promise.resolve();
+  return Promise.all([lobo,ceu].concat(ARTE.map(p=>new Promise((ok,fail)=>{ const im=new Image(); im.onload=()=>{ if(!p.srcRosto) return ok([p,im]); const i2=new Image(); i2.onload=()=>ok([p,im,i2]); i2.onerror=fail; i2.src=p.srcRosto; }; im.onerror=fail; im.src=p.src; })))).then(list=>{ list.splice(0,2);
+    list.forEach(([p,im,im2])=>{
       let src=im;
       if(p.cat==='garra'){ // garra invertida (miolo preto, traço claro): salta da floresta branca
         src=mkCanvas(im.width,im.height); const g=src.getContext('2d'); g.drawImage(im,0,0);
@@ -170,7 +175,8 @@ function loadPecas(){
       const asp=p.w/p.h, geo=new THREE.PlaneGeometry(asp,1);
       geo.translate(-(p.px-p.w/2)/p.h, -(p.h/2-p.py)/p.h, 0); // origem no ponto de encaixe
       const mat=new THREE.MeshBasicMaterial({map:t,alphaTest:.5,side:THREE.DoubleSide});
-      (PECAS[p.cat]=PECAS[p.cat]||[]).push(Object.assign({},p,{src:null,asp,geo,mat}));
+      let matRosto=null; if(im2){ const t2=new THREE.Texture(im2); t2.anisotropy=ANISO; t2.needsUpdate=true; matRosto=new THREE.MeshBasicMaterial({map:t2,alphaTest:.5,side:THREE.DoubleSide}); }
+      (PECAS[p.cat]=PECAS[p.cat]||[]).push(Object.assign({},p,{src:null,srcRosto:null,asp,geo,mat,matRosto}));
     });
   });
 }
@@ -192,12 +198,8 @@ function deadTree(r,H,inward,nb,sway,minF,faces,faceP){
     const base=dir*(-.35+r()*.85); pv.rotation.z=base; g.add(pv);
     sway.push({o:pv,b:base,a:.03+r()*.05,ph:r()*6.28,f:.8+r()*.7});
   }
-  // rosto terrível escondido no tronco: só aparece no clarão do relâmpago
-  if(faces && PECAS.rosto && r()<faceP){
-    const lo=inward?.32:.45, hi=inward?.55:.78, s=pick(p.espinha.filter(s=>s[0]>=lo&&s[0]<=hi),r)||p.espinha[3], {p:fp,m:fm}=piece('rosto',r);
-    const fs=s[2]/p.h*H*1.2/fp.asp; fm.scale.set(fs*(r()<.5?-1:1),fs,1);
-    fm.position.set((s[1]-p.px)/p.h*H*flip, s[0]*H, .03); fm.visible=false; fm.userData.front=inward!==0; g.add(fm); faces.push(fm);
-  }
+  // tronco sem rosto; no clarão do relâmpago ele troca para o desenho com o rosto
+  if(faces && p.matRosto){ m.userData.faceMat=p.matRosto; m.userData.cleanMat=p.mat; m.userData.front=inward!==0; faces.push(m); }
   return g;
 }
 function pineTree(r,H){ const g=new THREE.Group(), {m}=piece('pinheiro',r); m.scale.set(H*(r()<.5?-1:1),H,1); m.position.y=-.08; g.add(m); return g; }
@@ -284,7 +286,6 @@ function drawRed(dir,hp,seed,a,reach){
     hood[10]=[hx-dir*10+(hood[10][0]-hx)*.3, 52]; // ponta do capuz
     shape(c,J(hood,a,jr),true,RED,10);
     line(c,J([[hx-60,120],[hx-40,200],[hx-56,268]],a,jr),5); line(c,J([[hx+56,128],[hx+46,210],[hx+62,270]],a,jr),5);
-    if(dir!==0){ const fx=hx+dir*104; shape(c,J(ellipsePts(fx,220,26,44,10),a,jr),true,PAPER,8); line(c,J([[fx-dir*6,182],[fx+dir*10,196]],a,jr),5); }
   } else {
     shape(c,J(ellipsePts(256,200,88,100,12),a,jr),true,INK,6);
   }
@@ -325,7 +326,7 @@ const FR={};
 // põe o objeto no caminho: z ao longo da trilha, lat de lado (direita +), virado para frente da trilha
 function placeOnPath(obj,z,lat,y){ const f=frameAt(z); obj.position.set(f.x+lat*f.c, y||0, z-lat*f.s); obj.rotation.y=f.a; }
 function rowParams(k){ const r=RNG(k*7919+13); return { inL:2.0+r()*.45, inR:2.0+r()*.45, seed:Math.floor(r()*1e9) }; }
-let rows=[], claws=[], flowers=[], house, red, eyes, floor, wolf=null, wolfMat=null, wolfFront=null, wolfFrontMat=null;
+let sky=null, rows=[], claws=[], flowers=[], house, red, eyes, floor, wolf=null, wolfMat=null, wolfFront=null, wolfFrontMat=null;
 const CLAWROWS=new Set(), blood=[], hanged=[];
 // faixa no chão que acompanha a curva da trilha
 function ribbon(lat0,lat1,z0,z1,step,us,vs){
@@ -349,6 +350,9 @@ function buildWorld(){
   for(let i=0;i<6;i++){ const e=prr()<.5, x=e?14+prr()*22:220+prr()*22, y=prr()*512; line(pg,[[x,y],[x+(prr()-.5)*8,y+20+prr()*30]],3.5); }
   const pt=tex(pc); pt.wrapS=pt.wrapT=THREE.RepeatWrapping;
   const path=new THREE.Mesh(ribbon(-1.8,1.8,14,-TOTAL-40,1,1/3.6,1/7),new THREE.MeshBasicMaterial({map:pt,alphaTest:.5,side:THREE.DoubleSide})); path.position.y=.01; scene.add(path);
+  // céu: faixa curva só à frente (o vazio continua dos lados); desenhado primeiro, tudo fica na frente dele
+  if(SKYTEX){ const span=2.7, sm=new THREE.MeshBasicMaterial({map:SKYTEX,side:THREE.BackSide,fog:false,depthWrite:false,transparent:false,blending:THREE.CustomBlending,blendSrc:THREE.SrcAlphaFactor,blendDst:THREE.OneMinusSrcAlphaFactor});
+    sky=new THREE.Mesh(new THREE.CylinderGeometry(58,58,92,48,1,true,Math.PI-span/2,span),sm); sky.renderOrder=-3; scene.add(sky); }
   // casa
   house=new THREE.Mesh(new THREE.PlaneGeometry(9,6.75),houseMat); placeOnPath(house,-TOTAL-6,0,3.2); scene.add(house);
   // Chapeuzinho
@@ -514,8 +518,6 @@ const sfx={
     s.connect(f); f.connect(g); g.connect(A.master); s.start(t,Math.random()); s.stop(t+5);
     tone({t,f:44,f2:28,dur:3.2,gain:.12+.3*near,attack:.08});
   },
-  thud(pan,near){ const t=AC.currentTime; tone({t,f:62,f2:34,dur:.35,gain:.12+.4*near*near,pan}); burst({t,dur:.25,f:220,f2:80,gain:.08+.3*near*near,pan});
-    burst({t:t+.12,dur:.5,type:'bandpass',f:500,f2:260,q:2,gain:.03+.12*near,pan}); }, // baque surdo + bafo
   growl(pan){ const t=AC.currentTime; for(let i=0;i<6;i++) tone({t:t+i*.11,type:'sawtooth',f:58+Math.random()*10,f2:48,dur:.32,gain:.07,pan,attack:.04}); burst({t,dur:1.1,type:'bandpass',f:240,q:3,gain:.18,attack:.2,pan}); },
   rustle(){ burst({dur:.18,type:'bandpass',f:2600+Math.random()*1500,q:1.5,gain:.12}); },
   limp(){ burst({dur:.09,f:420,gain:.08,dest:A.forest}); burst({dur:.3,type:'bandpass',f:900,f2:500,q:1.2,gain:.07,dest:A.forest}); }, // pé arrastado
@@ -526,7 +528,7 @@ const sfx={
 // ---------- estado ----------
 let state='loading', px=0, pz=0, yaw=0, mouseYaw=0, keyLook=0, progress=0, hp=3, inv=0, got=0, t=0;
 let lookAmt=0, stepAcc=0, walkT=0, boilT=0, boilF=0, redDir=0, shake=0, endT=0, caughtT=0, eyeSide=1, blinkT=3, blink=0, lastRed='';
-let gaitT=0, lastHalf=0, crawlK=0, wShow=0, wStepT=0, wLunge=0, wFrom=0, wTo=0, wGrowl=false, FACESET=[], BLOODSET=[], lightT=12+Math.random()*8, flashP=null, flashT=0, flashK=0, FLASH_ON=false, REDUCE=false, bloodI=0;
+let gaitT=0, lastHalf=0, crawlK=0, wShow=0, wGrowl=false, FACESET=[], BLOODSET=[], lightT=12+Math.random()*8, flashP=null, flashT=0, flashK=0, FLASH_ON=false, REDUCE=false, bloodI=0;
 const BLACK=new THREE.Color(0);
 const keys={};
 const KEYMAP={KeyW:'fwd',ArrowUp:'fwd',KeyA:'left',KeyD:'right',ShiftLeft:'run',ShiftRight:'run'};
@@ -602,9 +604,10 @@ function spawnBlood(){ // manchas novas a cada relâmpago; só aparecem enquanto
     m.position.set(f.x+lat*f.c,.02+(bloodI%10)*.001,z-lat*f.s); m.rotation.y=Math.random()*6.28; m.scale.setScalar(.7+Math.random()*.7); m.visible=false; BLOODSET.push(m); }
 }
 // cada relâmpago acorda rostos em 3 a 5 árvores à vista (sempre outras)
+function setFace(m,on){ if(m.userData.faceMat) m.material=on?m.userData.faceMat:m.userData.cleanMat; else m.visible=on; }
 function pickFaces(){
-  FACESET.forEach(m=>m.visible=false); FACESET=[]; const v=new THREE.Vector3(), c=[];
-  rows.forEach(rw=>rw.faces.forEach(m=>{ m.getWorldPosition(v); const d=v.distanceTo(cam.position); if(d<2.5||d>18) return;
+  FACESET.forEach(m=>setFace(m,false)); FACESET=[]; const v=new THREE.Vector3(), c=[];
+  rows.forEach(rw=>rw.faces.forEach(m=>{ v.set(0,.5,0); m.localToWorld(v); const d=v.distanceTo(cam.position); if(d<2.5||d>18) return; // meio do tronco
     v.project(cam); if(v.z<1 && Math.abs(v.x)<.92 && Math.abs(v.y)<.8) c.push({m,d,f:m.userData.front,sx:v.x}); }));
   // primeiro os troncos da beira mais perto (bem à vista), depois um ou dois ao acaso no fundo
   const fr=c.filter(o=>o.f).sort((a,b)=>a.d-b.d).slice(0,5), bk=c.filter(o=>!o.f);
@@ -613,7 +616,7 @@ function pickFaces(){
   // às vezes, bem longe, alguém de capa pendurado numa árvore (silhueta; no clarão fica branca)
   // quanto mais longe na floresta, mais enforcados nas árvores ao redor (1 no começo, até 6 no fim)
   const fz=clamp(-pz/TOTAL,0,1), far=[];
-  rows.forEach(rw=>rw.faces.forEach(m=>{ if(FACESET.includes(m)) return; m.getWorldPosition(v); const d=v.distanceTo(cam.position); if(d<7||d>28) return;
+  rows.forEach(rw=>rw.faces.forEach(m=>{ if(FACESET.includes(m)) return; v.set(0,.5,0); m.localToWorld(v); const d=v.distanceTo(cam.position); if(d<7||d>28) return;
     v.project(cam); if(v.z<1 && Math.abs(v.x)<.95 && Math.abs(v.y)<1) far.push({m,d}); }));
   hanged.forEach(h=>{ if(h.parent) h.parent.remove(h); });
   const nH=Math.random()<.55+.45*fz ? 1+Math.floor(fz*5.5) : 0;
@@ -668,7 +671,7 @@ function update(dt){
     const target= touchYaw!==null ? touchYaw : keyLook!==0 ? keyLook*MAXY : mouseYaw; if(keyLook!==0) mouseYaw=yaw;
     yaw+=(target-yaw)*Math.min(1,dt*7);
     lookAmt=clamp((Math.abs(yaw)-.3)/.9,0,1);
-    if(Math.abs(yaw)>.3){ progress=Math.min(1,progress+(.012+.05*lookAmt)*dt); eyeSide=yaw>0?-1:1; if(progress>=1) caught(); }
+    if(Math.abs(yaw)>.3){ progress=Math.min(1,progress+(.012+.05*lookAmt)*1.4*dt); eyeSide=yaw>0?-1:1; if(progress>=1) caught(); } // lobo chega 40% mais rápido
     // passos
     if(hp>=3){ stepAcc+=speed*dt; if(stepAcc>.8){ stepAcc=0; sfx.step(keys.run?1.6:1); } }
     else if(keys.fwd){ const half=Math.floor(gaitT/3.1416); if(half!==lastHalf){ lastHalf=half; if(hp===2) (half%2===0?sfx.step(1):sfx.limp()); else if(half%2===0) sfx.drag(); } }
@@ -693,7 +696,7 @@ function update(dt){
   }
   INV.value=flashK;
   const fOn=flashK>.5;
-  if(fOn!==FLASH_ON){ FLASH_ON=fOn; FACESET.forEach(m=>m.visible=fOn); BLOODSET.forEach(m=>m.visible=fOn); }
+  if(fOn!==FLASH_ON){ FLASH_ON=fOn; FACESET.forEach(m=>setFace(m,fOn)); BLOODSET.forEach(m=>m.visible=fOn); }
 
   // referencial da trilha onde ela está: direção (heading), posição no mundo, olhar total
   frameAt(pz,FR); const heading=FR.a, Y=heading+yaw, wx=FR.x+px*FR.c, wz=pz-px*FR.s;
@@ -707,7 +710,8 @@ function update(dt){
     const ahead=pz-c.z;
     if(c.state==='done') return;
     if(ahead<-1.5){ c.state='done'; c.grp.visible=false; return; }
-    if(c.state==='idle'){ c.cool-=dt; if(state==='play' && ahead<7.5 && c.cool<=0){ c.state='warn'; c.t=0; c.grp.visible=true; sfx.crack(c.side*.9); } }
+    if(c.state==='idle'){ c.cool-=dt; const trig=Math.max(2.2,Math.max(speed,1.2)*(c.warn+CLAW_OUT*.85)); // dispara para o braço descer quando ela chega
+      if(state==='play' && ahead<trig && c.cool<=0){ c.state='warn'; c.t=0; c.grp.visible=true; sfx.crack(c.side*.9); } }
     else { c.t+=dt;
       let s=0, th=CLAW_UP; // th: ângulo do braço (para cima = positivo); o bote desce em arco
       if(c.state==='warn'){ s=.12+Math.random()*.07; if(c.t>c.warn){ c.state='out'; c.t=0; sfx.swipe(c.side*.6); } }
@@ -720,7 +724,7 @@ function update(dt){
       c.arm.rotation.z=c.side<0?th:-th;
       c.arm.position.y=(c.state==='warn'?Math.sin(t*60)*.02:0);
       // acerta se o braço alcança o lado dela E, nesse ponto, já desceu até a altura do corpo
-      if(c.state==='out'&&s>.45&&state==='play'&&inv<=0&&Math.abs(pz-c.z)<.45){
+      if(c.state==='out'&&s>.45&&state==='play'&&inv<=0&&Math.abs(pz-c.z)<.55){
         const dist=c.side<0?(px-.18)+c.anchor:c.anchor-(px+.18);
         const reach=Math.cos(th)*c.len*s, yAt=CLAW_Y+Math.tan(th)*Math.max(0,dist);
         if(dist<reach && yAt<1.35 && yAt>-.1){ hit(); c.state='in'; c.t=0; }
@@ -738,17 +742,14 @@ function update(dt){
   const dist=state==='caught'?lerp(3,.9,Math.min(1,caughtT/1.2)):70-progress*67;
   blinkT-=dt; if(blinkT<0){ blink=.16; blinkT=2.5+Math.random()*4; } blink=Math.max(0,blink-dt);
   const op=state==='caught'?1:Math.pow(lookAmt,.7);
-  if(wolf){ // lobo: chega em botes (para, respira, avança), tamanho fixo no mundo; só a distância encurta (cresce hiperbólico)
+  if(wolf){ // lobo: chega de forma contínua, tamanho fixo no mundo; só a distância encurta (cresce hiperbólico)
     if(state==='play'){
-      if(Math.abs(yaw)>.3) wStepT-=dt;
-      if(wLunge<=0 && progress-wShow>.012 && wStepT<=0){ wFrom=wShow; wTo=progress; wLunge=1e-4; wStepT=lerp(1.5,.55,progress)+Math.random()*.5;
-        if(AC) sfx.thud(eyeSide*.7,wTo); }
-      if(wLunge>0){ wLunge+=dt/.34; const u=Math.min(1,wLunge); wShow=lerp(wFrom,wTo,1-Math.pow(1-u,3)); if(u>=1) wLunge=0; }
+      wShow+=(progress-wShow)*Math.min(1,dt*4); // aproximação contínua e suave (sem botes)
       if(wShow>.35 && !wGrowl){ wGrowl=true; if(AC) sfx.growl(eyeSide*.7); }
     } else if(state==='caught'){ wShow=1; }
     const sm=(a,b,x)=>{ const u=clamp((x-a)/(b-a),0,1); return u*u*(3-2*u); };
     const wd=state==='caught'?lerp(2.6,.9,Math.min(1,caughtT/1.1)):3+67*Math.pow(1-wShow,1.5);
-    const lu=wLunge>0?Math.sin(Math.min(1,wLunge)*Math.PI):0; // mergulho de cabeça no bote
+    const lu=0;
     const S=8.5*(1+.018*Math.sin(t*2.3)+.04*lu), sway=Math.sin(t*.5)*.6*(1-wShow*.6), el=eyeSide*wd+sway*0;
     const ey=(state==='caught'?1.6:2.5+.5*wShow*wShow+Math.sin(t*2.3)*.05-.35*lu)-(LOBO.ey-.5)*S; // perto, a cabeça sobe acima da copa
     const U=wolfMat.uniforms; U.uOp.value=op; U.uR2.value=state==='caught'?1:sm(.38,.62,wShow); U.uR3.value=state==='caught'?1:sm(.72,.97,wShow);
@@ -768,6 +769,7 @@ function update(dt){
   // papel escurecendo no fim
   const fz=clamp(-pz/TOTAL,0,1), pc=new THREE.Color(PAPER).lerp(new THREE.Color('#b9b4a8'),fz*fz);
   scene.fog.color.copy(pc);
+  if(sky){ sky.position.set(wx,42,wz); sky.rotation.y=heading; sky.material.opacity=1-(state==='caught'?1:lookAmt*lookAmt*(3-2*lookAmt)); }
   // vazio: o fundo vai do papel ao preto conforme ela vira a cabeça (sem borda dura); no clarão, inverte
   const vz=state==='caught'?1:lookAmt, vs=vz*vz*(3-2*vz);
   scene.background.copy(pc).lerp(BLACK,vs); if(flashK>0){ const B=scene.background; B.setRGB(lerp(B.r,1-B.r,flashK),lerp(B.g,1-B.g,flashK),lerp(B.b,1-B.b,flashK)); }
@@ -785,7 +787,7 @@ function update(dt){
   red.position.set(wx+jit*FR.c,.65+bob-.06*crawlK,wz-jit*FR.s); red.rotation.z=tilt;
   red.rotation.y=Y; red.visible=!(inv>0&&Math.floor(t*12)%2===0);
   // câmera
-  const rad=1.05*(1-.35*lookAmt), sx=(Math.random()-.5)*shake*.3, sy=(Math.random()-.5)*shake*.3;
+  const rad=CAMR*(1-.35*lookAmt), sx=(Math.random()-.5)*shake*.3, sy=(Math.random()-.5)*shake*.3;
   cam.position.set(wx+Math.sin(Y)*rad+sx, 1.5-.25*crawlK+bob*.6+sy, wz+Math.cos(Y)*rad); // arrastando: câmera mais baixa
   cam.lookAt(wx-Math.sin(Y)*6, 1.0-.75*crawlK, wz-Math.cos(Y)*6);
   // papel do fundo fica à frente da trilha (não do olhar): olhando de lado, aparece o vazio
@@ -816,7 +818,7 @@ setTimeout(()=>{
   loadPecas().then(()=>{
     buildWorld();
     scene.traverse(o=>{ if(o.material && !o.material.isShaderMaterial) patchInvert(o.material); });
-    Object.values(PECAS).forEach(l=>l.forEach(p=>patchInvert(p.mat))); patchInvert(hangMat);
+    Object.values(PECAS).forEach(l=>l.forEach(p=>{ patchInvert(p.mat); if(p.matRosto) patchInvert(p.matRosto); })); patchInvert(hangMat);
     state='ready'; update(0); state='loading';
     $('go').disabled=false; $('go').textContent='Entrar na floresta';
     requestAnimationFrame(frame);
