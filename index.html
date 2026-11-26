@@ -38,13 +38,14 @@
   #deathmsg{position:fixed;left:0;right:0;top:50%;transform:translateY(-50%);z-index:21;text-align:center;padding:0 16px;font-size:clamp(24px,4vw,40px);color:var(--paper);opacity:0;transition:opacity 1.2s;pointer-events:none;text-shadow:0 2px 0 #3a0008}
   #deathmsg.on{opacity:1}
   #deathmsg small{display:block;font-size:.45em;opacity:.7;margin-top:.8em}
+  #logo{position:absolute;top:max(14px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:clamp(96px,14vw,160px);image-rendering:pixelated;pointer-events:none}
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126141705"></script>
-<script src="lobo.js?v=20261126141705"></script>
-<script src="ceu.js?v=20261126141705"></script>
-<script src="capa.js?v=20261126141705"></script>
+<script src="arte.js?v=20261126142026"></script>
+<script src="lobo.js?v=20261126142026"></script>
+<script src="ceu.js?v=20261126142026"></script>
+<script src="capa.js?v=20261126142026"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -59,6 +60,7 @@
 try{ if(sessionStorage.getItem('chapeu_sangue')){ const b=document.getElementById('bloodfx'); b.classList.remove('hide'); b.style.background='#7d0818'; } }catch(e){}</script>
 
 <div id="start" class="ov paper">
+  <img id="logo" alt="AcaliGames" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAXAAAACwCAYAAAAWhjU/AAAEiUlEQVR4nO3dMYocRxiA0R4jZjMFilapA11BV1iDz2IMPofB+CzGVqZYR5ACgyNttIEyTSLfYNtQbrq+7vdSMTM9NbUfFfyULsvOrtf7b8uB3W6Pl5HXH319Rtfv6Osz+/cf3d9bux58fb7b8s0B2I6AA0QJOECUgANECThAlIADRAk4QNRl9jnMpy+fl5m9evl618+ffX32Xr/Z12f277/2fPU58Kf4+jiBA0QJOECUgANECThAlIADRAk4QJSAA0TtPgf+9tO75cg+vHkYer31sT577p+1/VufA38bXx8ncIAoAQeIEnCAKAEHiBJwgCgBB4gScICoF8vJ56yPPoe99frU2T+UOYEDRAk4QJSAA0QJOECUgANECThAlIADROXnwBlTv88ZzswJHCBKwAGiBBwgSsABogQcIErAAaIEHCAqPwdev6+bfdk/lDmBA0QJOECUgANECThAlIADRAk4QJSAA0QJOECUgANECThAlIADRAk4QJSAA0QJOECUgANE5e8D//DmYdP3P/p90dfr/bflxOyfMWffP3tzAgeIEnCAKAEHiBJwgCgBB4gScIAoAQeI2n0O/J8/P236/rfb42VkjnXr51sz+vn3v/2+zOzx55+GXm//bLs+9s/cnMABogQcIErAAaIEHCBKwAGiBBwgSsABonafA2dsTnr2OV1gO07gAFECDhAl4ABRAg4QJeAAUQIOECXgAFHP3pX9f1i7b3tro/eBn/35zs7vw5b7Z5QTOECUgANECThAlIADRAk4QJSAA0QJOEDU6ozi2eeQzz4HPPv3H52z3fv5ae+/vTmBA0QJOECUgANECThAlIADRAk4QJSAA0RdRucon758XspevXy96fvPvj6zf/+tn2/25599/xx9/82+Pk7gAFECDhAl4ABRAg4QJeAAUQIOECXgAEedA//6wy/Lkd399evQ663Pvusz++83+/PtzfqMrY8TOECUgANECThAlIADRAk4QJSAA0QJOEDUi9nnPI9u6/U5+hzx0b/fKH9/x14fJ3CAKAEHiBJwgCgBB4gScIAoAQeIEnCAqM3nwGHLOd3ROfCt35/n3W6Pl+f+fe3/Kzj7+jiBA0QJOECUgANECThAlIADRAk4QJSAA0RNPwe+9Rzu3vcBmzNu/36z23t/zf77fJ18fdbm4J3AAaIEHCBKwAGiBBwgSsABogQcIErAAaKmnwOHkfuS15z9vum6u/h97mvPt/b9nMABogQcIErAAaIEHCBKwAGiBBwgSsABoqafA6/Pee59X3J9fTj2fdxbz+HfHfy+fydwgCgBB4gScIAoAQeIEnCAKAEHiBJwgKPOgb//+HHoA959/+OypdHnm/3z1+67XpujPfr6HP35Z//7G/Xw9x+H/n7vN94/TuAAUQIOECXgAFECDhAl4ABRAg4QJeAAR50DX5vTPPqcKcCsfXICB4gScIAoAQeIEnCAKAEHiBJwgCgBB4h69q7p/3LfdN3ofdtnf769ra3PmrOvH+397QQOECXgAFECDhAl4ABRAg4QJeAAUQIOsDT9C1r1L52A61KyAAAAAElFTkSuQmCC">
   <h1>Chapeuzinho</h1>
   <div class="sub">use fones de ouvido</div>
   <button id="go" disabled>Preparando a floresta…</button>
