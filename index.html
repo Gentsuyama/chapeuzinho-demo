@@ -13,6 +13,9 @@
   canvas{display:block}
   .ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px;box-sizing:border-box;z-index:10}
   .paper{background:var(--paper)}
+  #start.arte{background-size:cover;background-position:center 40%;background-repeat:no-repeat} /* fundo do menu: arte/montar_menu.py */
+  #start.arte .sub{text-shadow:0 0 8px var(--paper),0 0 16px var(--paper)}
+  @media (orientation:portrait){ #start.arte{background-position:57% center} }
   .dark{background:#000;color:#eee}
   h1{font-size:clamp(56px,11vw,120px);margin:0;color:var(--red);font-weight:400;letter-spacing:2px;-webkit-text-stroke:2px var(--ink)}
   .sub{font-size:clamp(20px,3vw,28px);margin:.2em 0 1em}
@@ -37,12 +40,13 @@
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126180452"></script>
-<script src="lobo.js?v=20261126180452"></script>
-<script src="ceu.js?v=20261126180452"></script>
-<script src="capa.js?v=20261126180452"></script>
-<script src="casa.js?v=20261126180452"></script>
-<script src="lobocorpo.js?v=20261126180452"></script>
+<script src="arte.js?v=20261126182744"></script>
+<script src="lobo.js?v=20261126182744"></script>
+<script src="ceu.js?v=20261126182744"></script>
+<script src="capa.js?v=20261126182744"></script>
+<script src="casa.js?v=20261126182744"></script>
+<script src="lobocorpo.js?v=20261126182744"></script>
+<script src="menu.js?v=20261126182744"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -61,6 +65,7 @@ try{ if(sessionStorage.getItem('chapeu_sangue')){ const b=document.getElementByI
   <div class="sub">use fones de ouvido</div>
   <button id="go" disabled>Preparando a floresta…</button>
 </div>
+<script>if(window.MENUART){ const m=document.getElementById('start'); m.style.backgroundImage='url('+MENUART.src+')'; m.classList.add('arte'); }</script>
 
 <div id="pause" class="ov paper hide">
   <img class="logo" alt="AcaliGames" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAXAAAACwCAYAAAAWhjU/AAAEiUlEQVR4nO3dMYocRxiA0R4jZjMFilapA11BV1iDz2IMPofB+CzGVqZYR5ACgyNttIEyTSLfYNtQbrq+7vdSMTM9NbUfFfyULsvOrtf7b8uB3W6Pl5HXH319Rtfv6Osz+/cf3d9bux58fb7b8s0B2I6AA0QJOECUgANECThAlIADRAk4QNRl9jnMpy+fl5m9evl618+ffX32Xr/Z12f277/2fPU58Kf4+jiBA0QJOECUgANECThAlIADRAk4QJSAA0TtPgf+9tO75cg+vHkYer31sT577p+1/VufA38bXx8ncIAoAQeIEnCAKAEHiBJwgCgBB4gScICoF8vJ56yPPoe99frU2T+UOYEDRAk4QJSAA0QJOECUgANECThAlIADROXnwBlTv88ZzswJHCBKwAGiBBwgSsABogQcIErAAaIEHCAqPwdev6+bfdk/lDmBA0QJOECUgANECThAlIADRAk4QJSAA0QJOECUgANECThAlIADRAk4QJSAA0QJOECUgANE5e8D//DmYdP3P/p90dfr/bflxOyfMWffP3tzAgeIEnCAKAEHiBJwgCgBB4gScIAoAQeI2n0O/J8/P236/rfb42VkjnXr51sz+vn3v/2+zOzx55+GXm//bLs+9s/cnMABogQcIErAAaIEHCBKwAGiBBwgSsABonafA2dsTnr2OV1gO07gAFECDhAl4ABRAg4QJeAAUQIOECXgAFHP3pX9f1i7b3tro/eBn/35zs7vw5b7Z5QTOECUgANECThAlIADRAk4QJSAA0QJOEDU6ozi2eeQzz4HPPv3H52z3fv5ae+/vTmBA0QJOECUgANECThAlIADRAk4QJSAA0RdRucon758XspevXy96fvPvj6zf/+tn2/25599/xx9/82+Pk7gAFECDhAl4ABRAg4QJeAAUQIOECXgAEedA//6wy/Lkd399evQ663Pvusz++83+/PtzfqMrY8TOECUgANECThAlIADRAk4QJSAA0QJOEDUi9nnPI9u6/U5+hzx0b/fKH9/x14fJ3CAKAEHiBJwgCgBB4gScIAoAQeIEnCAqM3nwGHLOd3ROfCt35/n3W6Pl+f+fe3/Kzj7+jiBA0QJOECUgANECThAlIADRAk4QJSAA0RNPwe+9Rzu3vcBmzNu/36z23t/zf77fJ18fdbm4J3AAaIEHCBKwAGiBBwgSsABogQcIErAAaKmnwOHkfuS15z9vum6u/h97mvPt/b9nMABogQcIErAAaIEHCBKwAGiBBwgSsABoqafA6/Pee59X3J9fTj2fdxbz+HfHfy+fydwgCgBB4gScIAoAQeIEnCAKAEHiBJwgKPOgb//+HHoA959/+OypdHnm/3z1+67XpujPfr6HP35Z//7G/Xw9x+H/n7vN94/TuAAUQIOECXgAFECDhAl4ABRAg4QJeAAR50DX5vTPPqcKcCsfXICB4gScIAoAQeIEnCAKAEHiBJwgCgBB4h69q7p/3LfdN3ofdtnf769ra3PmrOvH+397QQOECXgAFECDhAl4ABRAg4QJeAAUQIOsDT9C1r1L52A61KyAAAAAElFTkSuQmCC">
@@ -365,8 +370,8 @@ function fogTick(wx,wz,base,vs){ // base: cor do papel do momento; vs: 0 olhando
 // A casa fica na trilha, de verdade, logo atrás da última fileira de árvores (as árvores da frente a tapam).
 // Flores 1-5: aparece INTEIRA, surgindo da névoa (cada flor tira 20% da transparência; opaca na 5ª), sempre lá atrás da última árvore;
 // 6-9: vai chegando mais perto; 10: ela chega, o lobisomem sai da porta e a pega.
-let house=null, wolfman=null, houseOn=false, houseNear=34, houseS=1, houseD=34, houseVis=0, houseHead=0, houseT=0, FOGCOL=new THREE.Color(PAPER);
-const HOUSE_W=16, HOUSE_D=[34,34,34,34,34,34,27,21,16,13], HOUSE_S=[1,1,1,1,1,1,1,1,1,1]; // distância por flor (tamanho real; longe = pequena)
+let house=null, wolfman=null, houseOn=false, houseNear=34, houseS=.45, houseD=34, houseVis=0, houseHead=0, houseT=0, FOGCOL=new THREE.Color(PAPER);
+const HOUSE_W=16, HOUSE_D=[34,34,34,34,34,34,27,21,16,13], HOUSE_S=[.45,.45,.45,.45,.45,.45,.49,.53,.57,.6]; // distância e tamanho por flor (começa pequena; no fim 40% menor que a original)
 function buildHouse(){
   if(!CASATEX.casa) return;
   const C=CASA.casa, H=HOUSE_W*C.h/C.w, geo=new THREE.PlaneGeometry(HOUSE_W,H); geo.translate(0,H/2,0);
@@ -396,7 +401,7 @@ function buildHouse(){
 function houseTick(dt,wx,wz){
   if(!house) return;
   const final=state==='house';
-  const gi=Math.min(9,got), tgtD=final?11:HOUSE_D[gi], tgtS=final?1:HOUSE_S[gi];
+  const gi=Math.min(9,got), tgtD=final?11:HOUSE_D[gi], tgtS=final?.6:HOUSE_S[gi];
   houseS+=(tgtS-houseS)*Math.min(1,dt*(final?1.4:.6));
   const tgtV=final?1:Math.min(1,got*.2);   // começa 100% transparente; cada flor tira 20% (opaca na 5ª)
   houseD+=(tgtD-houseD)*Math.min(1,dt*(final?1.4:.6)); houseVis+=(tgtV-houseVis)*Math.min(1,dt*.8);
