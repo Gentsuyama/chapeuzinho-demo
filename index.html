@@ -37,12 +37,12 @@
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126174457"></script>
-<script src="lobo.js?v=20261126174457"></script>
-<script src="ceu.js?v=20261126174457"></script>
-<script src="capa.js?v=20261126174457"></script>
-<script src="casa.js?v=20261126174457"></script>
-<script src="lobocorpo.js?v=20261126174457"></script>
+<script src="arte.js?v=20261126174915"></script>
+<script src="lobo.js?v=20261126174915"></script>
+<script src="ceu.js?v=20261126174915"></script>
+<script src="capa.js?v=20261126174915"></script>
+<script src="casa.js?v=20261126174915"></script>
+<script src="lobocorpo.js?v=20261126174915"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -363,19 +363,23 @@ function fogTick(wx,wz,base,vs){ // base: cor do papel do momento; vs: 0 olhando
 
 // ---------- casa da vovó e lobisomem ----------
 // A casa fica na trilha, de verdade, logo atrás da última fileira de árvores (as árvores da frente a tapam).
-// Flores 1-5: aparece INTEIRA, de 60% transparente (1ª flor) a opaca (5ª), sempre lá atrás da última árvore;
+// Flores 1-5: aparece INTEIRA, surgindo da névoa (cada flor tira 20% da transparência; opaca na 5ª), sempre lá atrás da última árvore;
 // 6-9: vai chegando mais perto; 10: ela chega, o lobisomem sai da porta e a pega.
 let house=null, wolfman=null, houseOn=false, houseNear=34, houseS=1, houseD=34, houseVis=0, houseHead=0, houseT=0, FOGCOL=new THREE.Color(PAPER);
 const HOUSE_W=16, HOUSE_D=[34,34,34,34,34,34,27,21,16,13], HOUSE_S=[1,1,1,1,1,1,1,1,1,1]; // distância por flor (tamanho real; longe = pequena)
 function buildHouse(){
   if(!CASATEX.casa) return;
   const C=CASA.casa, H=HOUSE_W*C.h/C.w, geo=new THREE.PlaneGeometry(HOUSE_W,H); geo.translate(0,H/2,0);
-  const mat=new THREE.ShaderMaterial({uniforms:{map:{value:CASATEX.casa},uVis:{value:0},uInv:INV},side:THREE.DoubleSide,transparent:true,depthWrite:false,
+  // A casa surge da névoa: em vez de ficar transparente (aí as árvores de trás apareciam através dela), ela cobre o que
+  // está atrás com a cor da névoa e o desenho vai de "só névoa" a nítido. Visualmente: 100% -> 0% de transparência.
+  const mat=new THREE.ShaderMaterial({uniforms:{map:{value:CASATEX.casa},uVis:{value:0},uInv:INV,uFog:{value:new THREE.Color(PAPER)}},side:THREE.DoubleSide,transparent:true,depthWrite:false,
     vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-    fragmentShader:`uniform sampler2D map; uniform float uVis,uInv; varying vec2 vUv;
+    fragmentShader:`uniform sampler2D map; uniform float uVis,uInv; uniform vec3 uFog; varying vec2 vUv;
       void main(){ vec4 tx=texture2D(map,vUv); if(tx.a<.5) discard;
-        float a=uVis*mix(.35,1.,smoothstep(.0,.2,vUv.y)); // casa inteira, só a opacidade muda; o pé some na neblina
-        vec3 c=mix(tx.rgb,1.-tx.rgb,uInv); gl_FragColor=vec4(c,a); }`});
+        float foot=mix(.35,1.,smoothstep(.0,.2,vUv.y));
+        float show=uVis*foot, a=smoothstep(.0,.4,uVis)*foot;
+        vec3 c=mix(uFog,tx.rgb,clamp(show/max(a,.001),0.,1.));
+        c=mix(c,1.-c,uInv); gl_FragColor=vec4(c,a); }`});
   house=new THREE.Mesh(geo,mat); house.visible=false; scene.add(house);
   // lobisomem: filho da casa (fica na porta, na escala dela); no bote solta da casa e vem para a câmera
   if(CASATEX.lobPe && CASATEX.lobBote){
