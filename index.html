@@ -37,11 +37,11 @@
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126150209"></script>
-<script src="lobo.js?v=20261126150209"></script>
-<script src="ceu.js?v=20261126150209"></script>
-<script src="capa.js?v=20261126150209"></script>
-<script src="casa.js?v=20261126150209"></script>
+<script src="arte.js?v=20261126155105"></script>
+<script src="lobo.js?v=20261126155105"></script>
+<script src="ceu.js?v=20261126155105"></script>
+<script src="capa.js?v=20261126155105"></script>
+<script src="casa.js?v=20261126155105"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -217,7 +217,7 @@ function capaImg(c,im,cx,top,w,h,jr){ // peça do Flow com um tremor leve de tra
 const RC=mkCanvas(512,700), rctx=RC.getContext('2d'); const redTex=tex(RC);
 function drawRed(dir,hp,seed,a,reach){
   const c=rctx, jr=RNG(seed); c.clearRect(0,0,512,700); prep(c);
-  if(hp===1){ // caída, se arrastando pelo chão (vista de trás e de cima)
+  if(hp<=1){ // caída, se arrastando pelo chão (vista de trás e de cima); hp 0 = morta na mesma pose
     const lx=reach?-8:8;
     shape(c,J([[214,600],[246,604],[236,662],[206,656]],a,jr),true,PAPER,9,true); shape(c,J([[268,604],[300,600],[308,656],[278,662]],a,jr),true,PAPER,9,true);
     shape(c,J([[196,650],[240,656],[236,692],[190,686]],a,jr),true,INK,6,true); shape(c,J([[274,656],[318,650],[324,686],[278,692]],a,jr),true,INK,6,true);
@@ -320,22 +320,25 @@ function ribbon(lat0,lat1,z0,z1,step,us,vs){
 const FOGN=`float h1(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
 float vn(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f); return mix(mix(h1(i),h1(i+vec2(1.,0.)),f.x),mix(h1(i+vec2(0.,1.)),h1(i+vec2(1.,1.)),f.x),f.y); }
 float fbm(vec2 p){ float s=0., a=.5; for(int i=0;i<${TOUCH?3:4};i++){ s+=a*vn(p); p=p*2.03+vec2(17.3,9.1); a*=.5; } return s; }`;
-const FOG_U=()=>({uT:{value:0},uA:{value:1},uSeed:{value:0},uLine:{value:0},uCol:{value:new THREE.Color(PAPER)},uInk:{value:new THREE.Color(INK)},uP:{value:new THREE.Vector2()},uInv:INV});
+const FOG_U=()=>({uT:{value:0},uA:{value:1},uSeed:{value:0},uH:{value:0},uLine:{value:0},uCol:{value:new THREE.Color(PAPER)},uInk:{value:new THREE.Color(INK)},uP:{value:new THREE.Vector2()},uInv:INV});
 let fogLayers=[], fogWall=null;
 function buildFog(){
   const vs='varying vec3 vW; varying vec2 vUv; void main(){ vUv=uv; vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }';
-  const ground=`uniform float uT,uA,uSeed,uLine,uInv; uniform vec3 uCol,uInk; uniform vec2 uP; varying vec3 vW; ${FOGN}
-    void main(){ vec2 p=vW.xz*.15+uSeed;
+  // camadas empilhadas (0 = rente ao chão .. 1 = topo): o mesmo campo de ruído em todas, mas quanto mais alto, só os
+  // tufos mais densos chegam lá e mais transparente fica -> a névoa sobe em montes, forte embaixo e sumindo para cima
+  const ground=`uniform float uT,uA,uSeed,uH,uLine,uInv; uniform vec3 uCol,uInk; uniform vec2 uP; varying vec3 vW; ${FOGN}
+    void main(){ vec2 p=vW.xz*.15+vec2(uH*.5,uH*.25)+vec2(0.,uT*.012*uH);
       vec2 q=vec2(fbm(p+vec2(0.,uT*.05)),fbm(p+vec2(5.2,1.3)-uT*.04));
       float n=fbm(p+2.4*q+vec2(uT*.025,0.));
       float d=length(vW.xz-uP);
       float near=smoothstep(.6,3.2,d), edge=1.-smoothstep(22.,30.,d);
-      float a=smoothstep(.3,.68,n)*near*edge*uA;
-      float ln=uLine*(1.-smoothstep(0.,.018,abs(n-.42)))*near*edge; // contorno de tinta nos fiapos
+      float a=smoothstep(.22+.36*uH,.55+.32*uH,n)*near*edge*uA;
+      float ln=uLine*(1.-smoothstep(0.,.016,abs(n-(.4+.3*uH))))*near*edge; // contorno de tinta nos fiapos
       vec3 c=mix(uCol,uInk,ln); c=mix(c,1.-c,uInv);
       gl_FragColor=vec4(c,max(a,ln*.7)); }`;
-  const L=TOUCH?[[.08,.85,0],[.36,.6,.8]]:[[.06,.85,0],[.24,.65,.8],[.5,.45,0]];
-  L.forEach(([y,a,line],i)=>{ const u=FOG_U(); u.uA.value=a; u.uSeed.value=i*7.7; u.uLine.value=line;
+  const NL=TOUCH?5:8, TOP=TOUCH?1.25:1.5, L=[];
+  for(let i=0;i<NL;i++){ const h=i/(NL-1); L.push([.04+h*TOP,(TOUCH?.72:.6)*Math.pow(1-h*.85,1.3),i===Math.round(NL*.3)?.7:0,h]); }
+  L.forEach(([y,a,line,h])=>{ const u=FOG_U(); u.uA.value=a; u.uH.value=h; u.uLine.value=line;
     const m=new THREE.Mesh(new THREE.PlaneGeometry(64,64),new THREE.ShaderMaterial({uniforms:u,vertexShader:vs,fragmentShader:ground,transparent:true,depthWrite:false,side:THREE.DoubleSide,fog:false}));
     m.rotation.x=-Math.PI/2; m.position.y=y; m.renderOrder=.5; m.userData.y=y; scene.add(m); fogLayers.push(m); });
   // parede: anel em volta dela (raio 10), densa embaixo e rala em cima; desliza devagar
@@ -659,8 +662,14 @@ $('go').onclick=()=>{ $('start').classList.add('hide'); if(TOUCH) $('pbtn').clas
 function hit(){
   hp--; inv=1.6; shake=.35; sfx.rip(); $('flash').style.transition='none'; $('flash').style.opacity=.45; requestAnimationFrame(()=>{ $('flash').style.transition='opacity .6s'; $('flash').style.opacity=0; });
   lastRed='';
-  if(hp<=0){ state='torn'; musicOn=false; setTimeout(()=>over(),1200); }
+  if(hp<=0){ state='torn'; musicOn=false; startPool(); setTimeout(()=>over(),2300); }
 }
+// poça de sangue que se espalha embaixo dela quando a garra a mata
+let pool=null, poolT=0, deadK=0;
+function startPool(){ if(pool) return; poolT=0; const m=bloodMats[0].clone(); patchInvert(m);
+  pool=new THREE.Mesh(new THREE.PlaneGeometry(1,1),m); pool.rotation.x=-Math.PI/2; pool.scale.setScalar(.01); scene.add(pool); }
+function poolTick(dt,wx,wz){ poolT+=dt; const e=1-Math.pow(1-Math.min(1,poolT/2),3); // espalha rápido e vai desacelerando
+  pool.position.set(wx-Math.sin(FR.a)*.45,.025,wz-Math.cos(FR.a)*.45); pool.rotation.z=FR.a; pool.scale.set(.2+2.3*e,.2+2.1*e,1); }
 function caught(){ state='caught'; caughtT=0; musicOn=false; sfx.roar(); }
 // morte: o sangue escorre do alto e cobre a tela; aparece a frase; o sangue escorre para baixo e revela o menu
 let dying=false;
@@ -910,18 +919,19 @@ function update(dt){
   const dir=yaw>.5?-1:(yaw<-.5?1:0);
   const reach=hp===1&&!arms.length?(Math.sin(gaitT)>0?1:0):0, key=dir+'|'+hp+'|'+boilF+'|'+reach;
   if(key!==lastRed){ lastRed=key; drawRed(dir,hp,boilF*11+3,2.2,reach); }
-  crawlK+=((hp===1&&state!=='house'?1:0)-crawlK)*Math.min(1,dt*3);
+  crawlK+=((hp<=1&&state!=='house'?1:0)-crawlK)*Math.min(1,dt*3);
   let bob=speed>0?Math.abs(Math.sin(t*speed*3.4))*.03:0, tilt=0;
   if(hp===2&&keys.fwd&&state==='play'){ const sn=Math.sin(gaitT); bob=.05*sn; tilt=.065*sn-.02; } // mancando: sobe na perna boa, afunda na ferida, sempre no mesmo ritmo
-  if(hp===1){ const mv=keys.fwd&&state==='play'; bob=mv?.012*Math.sin(gaitT*2):0; tilt=mv?.03*Math.sin(gaitT):0; }
-  armsTick(hp===1&&state!=='house');
+  if(hp<=1){ const mv=keys.fwd&&state==='play'; bob=mv?.012*Math.sin(gaitT*2):0; tilt=mv?.03*Math.sin(gaitT):0; }
+  armsTick(hp<=1&&state!=='house'); if(pool) poolTick(dt,wx,wz);
   const jit=inv>0?Math.sin(t*50)*.03:0;
   red.position.set(wx+jit*FR.c,.65+bob-.06*crawlK,wz-jit*FR.s); red.rotation.z=tilt;
-  red.rotation.y=Y; red.visible=!(inv>0&&Math.floor(t*12)%2===0);
+  red.rotation.y=Y; red.visible=state==='torn'||!(inv>0&&Math.floor(t*12)%2===0); // morta: não pisca, fica parada
   // câmera
   const rad=CAMR*(1-.35*lookAmt), sx=(Math.random()-.5)*shake*.3, sy=(Math.random()-.5)*shake*.3;
-  cam.position.set(wx+Math.sin(Y)*rad+sx, 1.5-.25*crawlK+bob*.6+sy, wz+Math.cos(Y)*rad); // arrastando: câmera mais baixa
-  cam.lookAt(wx-Math.sin(Y)*6, 1.0-.75*crawlK, wz-Math.cos(Y)*6);
+  deadK+=((state==='torn'?1:0)-deadK)*Math.min(1,dt*1.5); // morta pela garra: a câmera sobe um pouco e olha para baixo, para a poça
+  cam.position.set(wx+Math.sin(Y)*rad*(1+.3*deadK)+sx, 1.5-.25*crawlK+.35*deadK+bob*.6+sy, wz+Math.cos(Y)*rad*(1+.3*deadK)); // arrastando: câmera mais baixa
+  cam.lookAt(wx-Math.sin(Y)*lerp(6,2.2,deadK), 1.0-.75*crawlK-.2*deadK, wz-Math.cos(Y)*lerp(6,2.2,deadK));
   // papel do fundo fica à frente da trilha (não do olhar): olhando de lado, aparece o vazio
   hanged.forEach((h,i)=>h.rotation.z=Math.sin(t*1.1+i*2)*.06);
   rainTick(dt,Y,flashK>.5);
