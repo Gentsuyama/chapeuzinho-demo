@@ -8,7 +8,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Caveat+Brush&display=swap" rel="stylesheet">
 <style>
   :root{ --paper:#f4f1ea; --ink:#141414; --red:#c8102e; }
-  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:'Caveat Brush',cursive;color:var(--ink);user-select:none}
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:'Caveat Brush',cursive;color:var(--ink);user-select:none;-webkit-user-select:none;touch-action:none;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+  #stick,#knob{position:fixed;border-radius:50%;pointer-events:none;z-index:5;transform:translate(-50%,-50%)}
+  #stick{width:110px;height:110px;border:3px solid rgba(20,20,20,.35)}
+  #knob{width:46px;height:46px;background:rgba(200,16,46,.55);border:3px solid rgba(20,20,20,.5)}
+  #pbtn{position:fixed;top:10px;right:12px;z-index:6;font-size:26px;margin:0;padding:.05em .55em;background:rgba(244,241,234,.8)}
+  .touch-only{display:none} body.touch .touch-only{display:block} body.touch .desk-only{display:none}
   canvas{display:block}
   .ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px;box-sizing:border-box;z-index:10}
   .paper{background:var(--paper)}
@@ -39,7 +44,9 @@
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
-<div id="hint" class="hide">W anda · A/D desvia · mouse ou Q/E olha para os lados</div>
+<div id="hint" class="hide"><span class="desk-only">W anda · A/D desvia · mouse ou Q/E olha para os lados</span><span class="touch-only">arraste para cima: anda · para os lados: desvia e olha</span></div>
+<div id="stick" class="hide"></div><div id="knob" class="hide"></div>
+<button id="pbtn" class="hide" aria-label="Pausar">❚❚</button>
 <canvas id="rain"></canvas>
 <div id="flash"></div>
 <div id="fade"></div>
@@ -47,7 +54,12 @@
 <div id="start" class="ov paper">
   <h1>Chapeuzinho</h1>
   <div class="sub">demo · use fones de ouvido</div>
-  <div class="ctrl">
+  <div class="ctrl touch-only">
+    Ponha o dedo na tela e <b>arraste para cima</b> para andar (bem para cima corre)<br>
+    Arraste <b>para os lados</b> para andar na diagonal · arrastando mais, ela <b>vira a cabeça</b> e olha a lateral<br>
+    Nunca para trás. Não olhe para o vazio por muito tempo.<br>Desvie das garras. Chegue à casa da vovó.
+  </div>
+  <div class="ctrl desk-only">
     <b>W</b> (segurar) anda para frente · <b>Shift</b> corre<br>
     <b>A</b> / <b>D</b> passo para o lado<br>
     <b>mouse</b> ou <b>Q</b> / <b>E</b> olha para os lados · nunca para trás<br>
@@ -60,6 +72,7 @@
 <div id="pause" class="ov paper hide">
   <div class="msg">Pausado</div>
   <button id="resume">Voltar para a floresta</button>
+  <button id="soft">Clarões: normais</button>
 </div>
 
 <div id="over" class="ov dark hide">
@@ -118,14 +131,19 @@ function prep(c){ c.lineJoin='round'; c.lineCap='round'; }
 
 // ---------- three ----------
 const renderer=new THREE.WebGLRenderer({antialias:true});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+const TOUCH=matchMedia('(pointer: coarse)').matches || ('ontouchstart' in window);
+if(TOUCH) document.body.classList.add('touch');
+renderer.setPixelRatio(Math.min(devicePixelRatio,TOUCH?1.25:2)); // celular: resolução mais leve
 renderer.setSize(innerWidth,innerHeight);
 document.body.appendChild(renderer.domElement);
 const scene=new THREE.Scene();
 scene.background=new THREE.Color(0x000000);
 scene.fog=new THREE.Fog(PAPER,12,52);
 const cam=new THREE.PerspectiveCamera(66,innerWidth/innerHeight,0.05,200);
-addEventListener('resize',()=>{ renderer.setSize(innerWidth,innerHeight); cam.aspect=innerWidth/innerHeight; cam.updateProjectionMatrix(); });
+// tela em pé: abre o campo de visão vertical para a largura não ficar estreita demais
+function fitCam(){ renderer.setSize(innerWidth,innerHeight); const a=innerWidth/innerHeight; cam.aspect=a;
+  cam.fov=a<1.2?Math.min(100,2*Math.atan(Math.tan(33*Math.PI/180)*1.2/a)*180/Math.PI):66; cam.updateProjectionMatrix(); }
+fitCam(); addEventListener('resize',fitCam);
 const ANISO=renderer.capabilities.getMaxAnisotropy();
 function tex(c){ const t=new THREE.CanvasTexture(c); t.anisotropy=ANISO; return t; }
 const boilers=[]; // {mat, frames}
@@ -298,6 +316,8 @@ function buildArt(){
 }
 
 // ---------- mundo ----------
+// garra: desce em arco do alto do tronco. CLAW_SLOW multiplica a duração do bote (2.5 = 60% mais lenta que a versão rápida)
+const CLAW_Y=1.35, CLAW_SLOW=2.5, CLAW_OUT=.16*CLAW_SLOW, CLAW_BACK=.45*CLAW_SLOW, CLAW_UP=1.2;
 const TOTAL=240, ROW_SP=1.6, Z0=4, NROWS=40, PXMAX=1.35; // faixa andável (de lado)
 const rowZ=k=>Z0-k*ROW_SP;
 // trilha sinuosa: x do centro do caminho em função de z (z diminui para frente). Reta só no começo.
@@ -351,7 +371,7 @@ function buildWorld(){
       const cp=pick(PECAS.garra,lr), W=len+EXT, sc=W/cp.asp;
       const grp=new THREE.Group(), arm=new THREE.Group(), m=new THREE.Mesh(cp.geo,cp.mat);
       m.scale.set(sc,sc*1.9,1); CLAWROWS.add(k+':'+side); m.position.x=-EXT; arm.add(m); grp.add(arm);
-      placeOnPath(grp,cz,side*anchor,.85); arm.scale.x=0; grp.visible=false; scene.add(grp);
+      placeOnPath(grp,cz,side*anchor,CLAW_Y); arm.scale.x=0; grp.visible=false; scene.add(grp);
       claws.push({z:cz,side,anchor,len,warn,grp,arm,state:'idle',t:0,cool:0});
     });
     z-=(15-f*7)*(.8+lr()*.4);
@@ -514,18 +534,41 @@ let gaitT=0, lastHalf=0, crawlK=0, wShow=0, wStepT=0, wLunge=0, wFrom=0, wTo=0, 
 const BLACK=new THREE.Color(0);
 const keys={};
 const KEYMAP={KeyW:'fwd',ArrowUp:'fwd',KeyA:'left',KeyD:'right',ShiftLeft:'run',ShiftRight:'run'};
-addEventListener('keydown',e=>{ if(e.code==='KeyT'&&!e.repeat){ REDUCE=!REDUCE; $('hint').textContent=REDUCE?'Clarões suaves (T)':'Clarões normais (T)'; $('hint').style.opacity=1; setTimeout(()=>$('hint').style.opacity=0,1800); }
+addEventListener('keydown',e=>{ if(e.code==='KeyT'&&!e.repeat){ REDUCE=!REDUCE; $('soft').textContent=REDUCE?'Clarões: suaves':'Clarões: normais'; $('hint').textContent=REDUCE?'Clarões suaves (T)':'Clarões normais (T)'; $('hint').style.opacity=1; setTimeout(()=>$('hint').style.opacity=0,1800); }
   if(KEYMAP[e.code]) keys[KEYMAP[e.code]]=true; if(e.code==='KeyQ'||e.code==='ArrowLeft') keyLook=1; if(e.code==='KeyE'||e.code==='ArrowRight') keyLook=-1; if(e.code.startsWith('Arrow')) e.preventDefault(); });
 addEventListener('keyup',e=>{ if(KEYMAP[e.code]) keys[KEYMAP[e.code]]=false; if((e.code==='KeyQ'||e.code==='ArrowLeft')&&keyLook===1){keyLook=0;mouseYaw=0;} if((e.code==='KeyE'||e.code==='ArrowRight')&&keyLook===-1){keyLook=0;mouseYaw=0;} });
+// celular: dedo na tela vira manche. Para cima anda (bem para cima corre); para o lado anda na diagonal
+// e, arrastando mais, ela vira a cabeça para aquela lateral. Soltou: para e volta a olhar para frente.
+let stick=null, touchLat=0, touchYaw=null;
+function stickEnd(){ if(!stick) return; stick=null; touchLat=0; touchYaw=null; mouseYaw=0; keys.fwd=keys.run=false; $('stick').classList.add('hide'); $('knob').classList.add('hide'); }
+function stickApply(){
+  const R=Math.min(innerWidth,innerHeight)*.2, dx=stick.x-stick.x0, dy=stick.y-stick.y0;
+  const nx=clamp(dx/R,-1,1), ny=clamp(-dy/R,-1,1), mag=Math.hypot(nx,ny);
+  keys.fwd=mag>.18 && ny>-.35; keys.run=ny>.9 && Math.abs(nx)<.35;
+  touchLat=Math.abs(nx)<.12?0:clamp(nx*1.5,-1,1);
+  const u=clamp((Math.abs(nx)-.45)/.55,0,1); touchYaw=-Math.sign(nx)*u*u*(3-2*u)*MAXY;
+  const k=Math.min(1,Math.hypot(dx,dy)/R), a=Math.atan2(dy,dx);
+  $('knob').style.left=(stick.x0+Math.cos(a)*k*55)+'px'; $('knob').style.top=(stick.y0+Math.sin(a)*k*55)+'px';
+}
+addEventListener('pointerdown',e=>{ if(e.pointerType==='mouse'||state!=='play'||stick||e.target!==renderer.domElement) return;
+  stick={id:e.pointerId,x0:e.clientX,y0:e.clientY,x:e.clientX,y:e.clientY};
+  for(const id of ['stick','knob']){ const el=$(id); el.style.left=e.clientX+'px'; el.style.top=e.clientY+'px'; el.classList.remove('hide'); }
+  stickApply(); e.preventDefault(); },{passive:false});
+addEventListener('pointermove',e=>{ if(!stick||e.pointerId!==stick.id) return; stick.x=e.clientX; stick.y=e.clientY; stickApply(); e.preventDefault(); },{passive:false});
+addEventListener('pointerup',e=>{ if(stick&&e.pointerId===stick.id) stickEnd(); });
+addEventListener('pointercancel',e=>{ if(stick&&e.pointerId===stick.id) stickEnd(); });
+addEventListener('touchmove',e=>e.preventDefault(),{passive:false}); // sem rolar nem dar zoom
 addEventListener('mousemove',e=>{ if(state==='play') mouseYaw=clamp(mouseYaw-e.movementX*.0028,-MAXY,MAXY); });
 addEventListener('blur',()=>{ for(const k in keys) keys[k]=false; if(state==='play') pause(); });
 const MAXY=1.35;
 const $=id=>document.getElementById(id);
-function lock(){ try{ const p=renderer.domElement.requestPointerLock(); if(p&&p.catch) p.catch(()=>{}); }catch(e){} }
+function lock(){ if(TOUCH) return; try{ const p=renderer.domElement.requestPointerLock(); if(p&&p.catch) p.catch(()=>{}); }catch(e){} }
 document.addEventListener('pointerlockchange',()=>{ if(!document.pointerLockElement && state==='play') pause(); });
-function pause(){ state='paused'; $('pause').classList.remove('hide'); if(AC) AC.suspend(); }
+function pause(){ stickEnd(); state='paused'; $('pause').classList.remove('hide'); if(AC) AC.suspend(); }
+$('pbtn').onclick=e=>{ e.stopPropagation(); if(state==='play') pause(); };
+$('soft').onclick=()=>{ REDUCE=!REDUCE; $('soft').textContent=REDUCE?'Clarões: suaves':'Clarões: normais'; };
 $('resume').onclick=()=>{ $('pause').classList.add('hide'); state='play'; if(AC) AC.resume(); lock(); };
-$('go').onclick=()=>{ $('start').classList.add('hide'); audioInit(); state='play'; lock(); $('hud').classList.remove('hide'); $('hint').classList.remove('hide'); setTimeout(()=>$('hint').style.opacity=0,9000); };
+$('go').onclick=()=>{ $('start').classList.add('hide'); if(TOUCH) $('pbtn').classList.remove('hide'); audioInit(); state='play'; lock(); $('hud').classList.remove('hide'); $('hint').classList.remove('hide'); setTimeout(()=>$('hint').style.opacity=0,9000); };
 
 function hit(){
   hp--; inv=1.6; shake=.35; sfx.rip(); $('flash').style.transition='none'; $('flash').style.opacity=.45; requestAnimationFrame(()=>{ $('flash').style.transition='opacity .6s'; $('flash').style.opacity=0; });
@@ -533,13 +576,13 @@ function hit(){
   if(hp<=0){ state='torn'; musicOn=false; setTimeout(()=>over('A floresta rasgou toda a capa.'),1200); }
 }
 function caught(){ state='caught'; caughtT=0; musicOn=false; sfx.roar(); }
-function over(msg){ $('overmsg').textContent=msg; $('over').classList.remove('hide'); $('hud').classList.add('hide'); if(document.exitPointerLock) document.exitPointerLock(); }
+function over(msg){ $('pbtn').classList.add('hide'); stickEnd(); $('overmsg').textContent=msg; $('over').classList.remove('hide'); $('hud').classList.add('hide'); if(document.exitPointerLock) document.exitPointerLock(); }
 
 // ---------- chuva e relâmpago ----------
 const rainCv=document.getElementById('rain'), rg=rainCv.getContext('2d'); let RW=1,RH=1,RD=1,lastY=null;
-function rainSize(){ RD=Math.min(devicePixelRatio,2); RW=rainCv.width=Math.round(innerWidth*RD); RH=rainCv.height=Math.round(innerHeight*RD); }
+function rainSize(){ RD=Math.min(devicePixelRatio,TOUCH?1.25:2); RW=rainCv.width=Math.round(innerWidth*RD); RH=rainCv.height=Math.round(innerHeight*RD); }
 rainSize(); addEventListener('resize',rainSize);
-const drops=[], splashes=[]; for(let i=0;i<230;i++) drops.push({x:Math.random(),y:Math.random(),z:Math.random()}); // z: 0 longe .. 1 perto
+const drops=[], splashes=[]; for(let i=0;i<(TOUCH?150:230);i++) drops.push({x:Math.random(),y:Math.random(),z:Math.random()}); // z: 0 longe .. 1 perto
 function rainTick(dt,Ycur,flash){
   let dy=lastY===null?0:Ycur-lastY; lastY=Ycur; if(Math.abs(dy)>.5) dy=0;
   rg.clearRect(0,0,RW,RH); rg.lineCap='round'; rg.strokeStyle=flash?PAPER:INK;
@@ -621,7 +664,7 @@ function update(dt){
       else { gaitT+=dt*2.3; speed=2.1*Math.pow(Math.max(0,Math.sin(gaitT)),2); } // se arrasta: puxões com os braços
     }
     frameAt(pz,FR); // anda pela trilha; a curva a leva sozinha
-    const lat=(keys.right?1:0)-(keys.left?1:0); px=clamp(px+lat*2.6*dt,-PXMAX,PXMAX);
+    const lat=clamp((keys.right?1:0)-(keys.left?1:0)+touchLat,-1,1); px=clamp(px+lat*2.6*dt,-PXMAX,PXMAX);
     // moitas: não dá para atravessar; encostando, ela escorrega devagar para o lado mais perto
     let nz=pz-speed*dt*FR.c;
     for(const rw of rows){ if(!rw.block.length || rw.z>pz+.6 || rw.z<nz-.6) continue;
@@ -629,7 +672,7 @@ function update(dt){
         if(over && pz>=rw.z+.28 && nz<rw.z+.28){ nz=rw.z+.28; if(speed>0){ px=clamp(px+(px<(b[0]+b[1])/2?-1:1)*.9*dt,-PXMAX,PXMAX); if(Math.random()<dt*3) sfx.rustle(); } }
         else if(over && pz<rw.z+.28 && pz>rw.z-.28){ px=px<(b[0]+b[1])/2?b[0]-.2:b[1]+.2; } } }
     pz=nz;
-    const target= keyLook!==0 ? keyLook*MAXY : mouseYaw; if(keyLook!==0) mouseYaw=yaw;
+    const target= touchYaw!==null ? touchYaw : keyLook!==0 ? keyLook*MAXY : mouseYaw; if(keyLook!==0) mouseYaw=yaw;
     yaw+=(target-yaw)*Math.min(1,dt*7);
     lookAmt=clamp((Math.abs(yaw)-.3)/.9,0,1);
     if(Math.abs(yaw)>.3){ progress=Math.min(1,progress+(.012+.05*lookAmt)*dt); eyeSide=yaw>0?-1:1; if(progress>=1) caught(); }
@@ -673,16 +716,21 @@ function update(dt){
     if(ahead<-1.5){ c.state='done'; c.grp.visible=false; return; }
     if(c.state==='idle'){ c.cool-=dt; if(state==='play' && ahead<7.5 && c.cool<=0){ c.state='warn'; c.t=0; c.grp.visible=true; sfx.crack(c.side*.9); } }
     else { c.t+=dt;
-      let s=0;
+      let s=0, th=CLAW_UP; // th: ângulo do braço (para cima = positivo); o bote desce em arco
       if(c.state==='warn'){ s=.12+Math.random()*.07; if(c.t>c.warn){ c.state='out'; c.t=0; sfx.swipe(c.side*.6); } }
-      else if(c.state==='out'){ s=c.t<.16?c.t/.16:1-(c.t-.16)/.45; if(s<=0){ s=0; c.state='idle'; c.cool=1.1; c.grp.visible=false; } } // sai em .16 s e volta em .45 s, sem parar
-      else if(c.state==='in'){ s=Math.max(0,1-c.t/.3); if(s<=0){ c.state='idle'; c.cool=1.1; c.grp.visible=false; } }
+      else if(c.state==='out'){
+        if(c.t<CLAW_OUT){ const u=c.t/CLAW_OUT, e=u*u*(3-2*u); s=e; th=lerp(CLAW_UP,-.15,e); }
+        else { const u=(c.t-CLAW_OUT)/CLAW_BACK; s=1-u; th=lerp(-.15,-.45,Math.min(1,u)); if(u>=1){ s=0; c.state='idle'; c.cool=1.1; c.grp.visible=false; } } // sem parar: desce e já recolhe
+      }
+      else if(c.state==='in'){ s=Math.max(0,1-c.t/.5); th=-.4; if(s<=0){ c.state='idle'; c.cool=1.1; c.grp.visible=false; } }
       c.arm.scale.x=c.side<0?s:-s;
+      c.arm.rotation.z=c.side<0?th:-th;
       c.arm.position.y=(c.state==='warn'?Math.sin(t*60)*.02:0);
-      if(c.state==='out'&&s>.6&&state==='play'&&inv<=0&&Math.abs(pz-c.z)<.45){
-        const tip=c.side<0?-c.anchor+c.len*s:c.anchor-c.len*s;
-        const hitNow=c.side<0?(px-.18<tip):(px+.18>tip);
-        if(hitNow){ hit(); c.state='in'; c.t=0; }
+      // acerta se o braço alcança o lado dela E, nesse ponto, já desceu até a altura do corpo
+      if(c.state==='out'&&s>.45&&state==='play'&&inv<=0&&Math.abs(pz-c.z)<.45){
+        const dist=c.side<0?(px-.18)+c.anchor:c.anchor-(px+.18);
+        const reach=Math.cos(th)*c.len*s, yAt=CLAW_Y+Math.tan(th)*Math.max(0,dist);
+        if(dist<reach && yAt<1.35 && yAt>-.1){ hit(); c.state='in'; c.t=0; }
       }
     }
   });
@@ -762,7 +810,7 @@ function update(dt){
     if(Math.random()<dt*7) burst({dur:.02,type:'bandpass',f:2200+Math.random()*3000,q:4,gain:.03+Math.random()*.05,pan:Math.random()*2-1}); // pingos
   }
 }
-function showEnd(){
+function showEnd(){ $('pbtn').classList.add('hide'); stickEnd();
   $('end').classList.remove('hide'); $('hud').classList.add('hide'); if(document.exitPointerLock) document.exitPointerLock();
   $('endstats').textContent=`Flores colhidas: ${got} de ${flowers.length} · capa: ${['','um farrapo','rasgada','inteira'][hp]}`;
   const ps=[...document.querySelectorAll('#endtxt p')]; ps.forEach((p,i)=>setTimeout(()=>p.classList.add('on'),400+i*1500));
