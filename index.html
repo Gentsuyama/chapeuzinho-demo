@@ -37,12 +37,12 @@
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126163506"></script>
-<script src="lobo.js?v=20261126163506"></script>
-<script src="ceu.js?v=20261126163506"></script>
-<script src="capa.js?v=20261126163506"></script>
-<script src="casa.js?v=20261126163506"></script>
-<script src="lobocorpo.js?v=20261126163506"></script>
+<script src="arte.js?v=20261126173953"></script>
+<script src="lobo.js?v=20261126173953"></script>
+<script src="ceu.js?v=20261126173953"></script>
+<script src="capa.js?v=20261126173953"></script>
+<script src="casa.js?v=20261126173953"></script>
+<script src="lobocorpo.js?v=20261126173953"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -653,7 +653,7 @@ const sfx={
 // ---------- estado ----------
 let state='loading', px=0, pz=0, yaw=0, mouseYaw=0, keyLook=0, progress=0, hp=3, inv=0, got=0, t=0;
 let lookAmt=0, stepAcc=0, walkT=0, boilT=0, boilF=0, redDir=0, shake=0, caughtT=0, eyeSide=1, blinkT=3, blink=0, lastRed='';
-let stillT=0, wolfNear=false, gaitT=0, lastHalf=0, crawlK=0, wShow=0, wGrowl=false, FACESET=[], BLOODSET=[], lightT=12+Math.random()*8, flashP=null, flashT=0, flashK=0, FLASH_ON=false, REDUCE=false, bloodI=0;
+let stillT=0, wolfNear=false, gaitT=0, lastHalf=0, crawlK=0, wShow=0, wGrowl=false, FACESET=[], BLOODSET=[], lightT=6.7+Math.random()*4.4, flashP=null, flashT=0, flashK=0, FLASH_ON=false, REDUCE=false, bloodI=0;
 const BLACK=new THREE.Color(0);
 const keys={};
 const KEYMAP={KeyW:'fwd',ArrowUp:'fwd',KeyA:'left',ArrowLeft:'left',KeyD:'right',ArrowRight:'right',ShiftLeft:'run',ShiftRight:'run'}; // setas = WASD; olhar: mouse ou Q/E
@@ -861,7 +861,7 @@ function update(dt){
   } else if(state==='torn'){ yaw*=.95; }
   inv=Math.max(0,inv-dt); shake=Math.max(0,shake-dt);
   // trovão: de tempos em tempos a tela pisca invertida, rostos nas árvores, sangue no chão
-  if(state==='play'){ lightT-=dt; if(lightT<=0){ lightning(); lightT=16+Math.random()*18; } }
+  if(state==='play'){ lightT-=dt; if(lightT<=0){ lightning(); lightT=8.9+Math.random()*10; } } // trovões 80% mais frequentes (média ~14 s)
   flashK=0;
   if(flashP){ flashT+=dt; let a=0, k=-1;
     for(const [v,dur] of flashP.seg){ if(flashT<a+dur){ k=v; break; } a+=dur; }
