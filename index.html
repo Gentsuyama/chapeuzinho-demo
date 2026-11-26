@@ -5,10 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Chapeuzinho · demo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Caveat+Brush&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Caveat+Brush&family=Caveat:wght@700&family=Ma+Shan+Zheng&family=Itim&display=swap" rel="stylesheet">
 <style>
   :root{ --paper:#f4f1ea; --ink:#141414; --red:#c8102e; }
-  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:'Caveat Brush',cursive;color:var(--ink);user-select:none;-webkit-user-select:none;touch-action:none;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:'Caveat Brush','Caveat','Ma Shan Zheng','Itim',cursive;color:var(--ink);user-select:none;-webkit-user-select:none;touch-action:none;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
   #pbtn{position:fixed;top:10px;right:12px;z-index:6;font-size:26px;margin:0;padding:.05em .55em;background:rgba(244,241,234,.8)}
   canvas{display:block}
   .ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px;box-sizing:border-box;z-index:10}
@@ -30,6 +30,13 @@
   .dark button{background:#000;color:#eee;border-color:#eee}
   .dark button:hover{background:var(--red)}
   .hide{display:none!important}
+  /* idioma: bandeira no canto superior esquerdo do menu */
+  #lang{position:absolute;top:max(14px,env(safe-area-inset-top));left:max(14px,env(safe-area-inset-left));margin:0;padding:6px 10px;font-size:18px;display:flex;align-items:center;gap:6px;border-width:3px;z-index:3}
+  #lang svg,#langlist svg{width:36px;height:24px;display:block;border:2px solid var(--ink);border-radius:3px;flex:none}
+  #langlist{position:absolute;top:calc(max(14px,env(safe-area-inset-top)) + 54px);left:max(14px,env(safe-area-inset-left));background:var(--paper);border:3px solid var(--ink);border-radius:12px 9px 14px 8px;padding:6px;display:flex;flex-direction:column;gap:2px;z-index:4;max-height:calc(100% - 90px);overflow:auto}
+  #langlist button{margin:0;border:0;background:none;font-size:22px;padding:4px 12px 4px 8px;display:flex;align-items:center;gap:12px;border-radius:8px;text-align:left;white-space:nowrap}
+  #langlist button:hover,#langlist button.on{background:rgba(20,20,20,.09)}
+  #start h1{position:relative;top:-11vh;white-space:nowrap} /* nome mais para cima (pedido do Rodolfo) */
   #hud{position:fixed;top:14px;left:18px;font-size:30px;color:var(--red);z-index:5;-webkit-text-stroke:1px var(--ink);pointer-events:none}
   #rain{position:fixed;inset:0;pointer-events:none;z-index:4}
   #flash{position:fixed;inset:0;background:var(--red);opacity:0;pointer-events:none;z-index:6}
@@ -43,13 +50,13 @@
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126184931"></script>
-<script src="lobo.js?v=20261126184931"></script>
-<script src="ceu.js?v=20261126184931"></script>
-<script src="capa.js?v=20261126184931"></script>
-<script src="casa.js?v=20261126184931"></script>
-<script src="lobocorpo.js?v=20261126184931"></script>
-<script src="menu.js?v=20261126184931"></script>
+<script src="arte.js?v=20261126185819"></script>
+<script src="lobo.js?v=20261126185819"></script>
+<script src="ceu.js?v=20261126185819"></script>
+<script src="capa.js?v=20261126185819"></script>
+<script src="casa.js?v=20261126185819"></script>
+<script src="lobocorpo.js?v=20261126185819"></script>
+<script src="menu.js?v=20261126185819"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -63,18 +70,75 @@
 try{ if(sessionStorage.getItem('chapeu_sangue')){ const b=document.getElementById('bloodfx'); b.classList.remove('hide'); b.style.background='#7d0818'; } }catch(e){}</script>
 
 <div id="start" class="ov paper">
+  <button id="lang" aria-label="Idioma"></button><div id="langlist" class="hide"></div>
   <img class="logo" alt="AcaliGames" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAXAAAACwCAYAAAAWhjU/AAAEiUlEQVR4nO3dMYocRxiA0R4jZjMFilapA11BV1iDz2IMPofB+CzGVqZYR5ACgyNttIEyTSLfYNtQbrq+7vdSMTM9NbUfFfyULsvOrtf7b8uB3W6Pl5HXH319Rtfv6Osz+/cf3d9bux58fb7b8s0B2I6AA0QJOECUgANECThAlIADRAk4QNRl9jnMpy+fl5m9evl618+ffX32Xr/Z12f277/2fPU58Kf4+jiBA0QJOECUgANECThAlIADRAk4QJSAA0TtPgf+9tO75cg+vHkYer31sT577p+1/VufA38bXx8ncIAoAQeIEnCAKAEHiBJwgCgBB4gScICoF8vJ56yPPoe99frU2T+UOYEDRAk4QJSAA0QJOECUgANECThAlIADROXnwBlTv88ZzswJHCBKwAGiBBwgSsABogQcIErAAaIEHCAqPwdev6+bfdk/lDmBA0QJOECUgANECThAlIADRAk4QJSAA0QJOECUgANECThAlIADRAk4QJSAA0QJOECUgANE5e8D//DmYdP3P/p90dfr/bflxOyfMWffP3tzAgeIEnCAKAEHiBJwgCgBB4gScIAoAQeI2n0O/J8/P236/rfb42VkjnXr51sz+vn3v/2+zOzx55+GXm//bLs+9s/cnMABogQcIErAAaIEHCBKwAGiBBwgSsABonafA2dsTnr2OV1gO07gAFECDhAl4ABRAg4QJeAAUQIOECXgAFHP3pX9f1i7b3tro/eBn/35zs7vw5b7Z5QTOECUgANECThAlIADRAk4QJSAA0QJOEDU6ozi2eeQzz4HPPv3H52z3fv5ae+/vTmBA0QJOECUgANECThAlIADRAk4QJSAA0RdRucon758XspevXy96fvPvj6zf/+tn2/25599/xx9/82+Pk7gAFECDhAl4ABRAg4QJeAAUQIOECXgAEedA//6wy/Lkd399evQ663Pvusz++83+/PtzfqMrY8TOECUgANECThAlIADRAk4QJSAA0QJOEDUi9nnPI9u6/U5+hzx0b/fKH9/x14fJ3CAKAEHiBJwgCgBB4gScIAoAQeIEnCAqM3nwGHLOd3ROfCt35/n3W6Pl+f+fe3/Kzj7+jiBA0QJOECUgANECThAlIADRAk4QJSAA0RNPwe+9Rzu3vcBmzNu/36z23t/zf77fJ18fdbm4J3AAaIEHCBKwAGiBBwgSsABogQcIErAAaKmnwOHkfuS15z9vum6u/h97mvPt/b9nMABogQcIErAAaIEHCBKwAGiBBwgSsABoqafA6/Pee59X3J9fTj2fdxbz+HfHfy+fydwgCgBB4gScIAoAQeIEnCAKAEHiBJwgKPOgb//+HHoA959/+OypdHnm/3z1+67XpujPfr6HP35Z//7G/Xw9x+H/n7vN94/TuAAUQIOECXgAFECDhAl4ABRAg4QJeAAR50DX5vTPPqcKcCsfXICB4gScIAoAQeIEnCAKAEHiBJwgCgBB4h69q7p/3LfdN3ofdtnf769ra3PmrOvH+397QQOECXgAFECDhAl4ABRAg4QJeAAUQIOsDT9C1r1L52A61KyAAAAAElFTkSuQmCC">
-  <h1>Chapeuzinho</h1>
-  <div class="sub">use fones de ouvido</div>
-  <button id="go" disabled>Preparando a floresta…</button>
+  <h1 data-t="title">Chapeuzinho</h1>
+  <div class="sub" data-t="sub">use fones de ouvido</div>
+  <button id="go" disabled data-t="loading">Preparando a floresta…</button>
 </div>
 <script>if(window.MENUART){ const m=document.getElementById('start'); m.style.backgroundImage='url('+MENUART.src+')'; m.classList.add('arte'); }</script>
 
 <div id="pause" class="ov paper hide">
   <img class="logo" alt="AcaliGames" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAXAAAACwCAYAAAAWhjU/AAAEiUlEQVR4nO3dMYocRxiA0R4jZjMFilapA11BV1iDz2IMPofB+CzGVqZYR5ACgyNttIEyTSLfYNtQbrq+7vdSMTM9NbUfFfyULsvOrtf7b8uB3W6Pl5HXH319Rtfv6Osz+/cf3d9bux58fb7b8s0B2I6AA0QJOECUgANECThAlIADRAk4QNRl9jnMpy+fl5m9evl618+ffX32Xr/Z12f277/2fPU58Kf4+jiBA0QJOECUgANECThAlIADRAk4QJSAA0TtPgf+9tO75cg+vHkYer31sT577p+1/VufA38bXx8ncIAoAQeIEnCAKAEHiBJwgCgBB4gScICoF8vJ56yPPoe99frU2T+UOYEDRAk4QJSAA0QJOECUgANECThAlIADROXnwBlTv88ZzswJHCBKwAGiBBwgSsABogQcIErAAaIEHCAqPwdev6+bfdk/lDmBA0QJOECUgANECThAlIADRAk4QJSAA0QJOECUgANECThAlIADRAk4QJSAA0QJOECUgANE5e8D//DmYdP3P/p90dfr/bflxOyfMWffP3tzAgeIEnCAKAEHiBJwgCgBB4gScIAoAQeI2n0O/J8/P236/rfb42VkjnXr51sz+vn3v/2+zOzx55+GXm//bLs+9s/cnMABogQcIErAAaIEHCBKwAGiBBwgSsABonafA2dsTnr2OV1gO07gAFECDhAl4ABRAg4QJeAAUQIOECXgAFHP3pX9f1i7b3tro/eBn/35zs7vw5b7Z5QTOECUgANECThAlIADRAk4QJSAA0QJOEDU6ozi2eeQzz4HPPv3H52z3fv5ae+/vTmBA0QJOECUgANECThAlIADRAk4QJSAA0RdRucon758XspevXy96fvPvj6zf/+tn2/25599/xx9/82+Pk7gAFECDhAl4ABRAg4QJeAAUQIOECXgAEedA//6wy/Lkd399evQ663Pvusz++83+/PtzfqMrY8TOECUgANECThAlIADRAk4QJSAA0QJOEDUi9nnPI9u6/U5+hzx0b/fKH9/x14fJ3CAKAEHiBJwgCgBB4gScIAoAQeIEnCAqM3nwGHLOd3ROfCt35/n3W6Pl+f+fe3/Kzj7+jiBA0QJOECUgANECThAlIADRAk4QJSAA0RNPwe+9Rzu3vcBmzNu/36z23t/zf77fJ18fdbm4J3AAaIEHCBKwAGiBBwgSsABogQcIErAAaKmnwOHkfuS15z9vum6u/h97mvPt/b9nMABogQcIErAAaIEHCBKwAGiBBwgSsABoqafA6/Pee59X3J9fTj2fdxbz+HfHfy+fydwgCgBB4gScIAoAQeIEnCAKAEHiBJwgKPOgb//+HHoA959/+OypdHnm/3z1+67XpujPfr6HP35Z//7G/Xw9x+H/n7vN94/TuAAUQIOECXgAFECDhAl4ABRAg4QJeAAR50DX5vTPPqcKcCsfXICB4gScIAoAQeIEnCAKAEHiBJwgCgBB4h69q7p/3LfdN3ofdtnf769ra3PmrOvH+397QQOECXgAFECDhAl4ABRAg4QJeAAUQIOsDT9C1r1L52A61KyAAAAAElFTkSuQmCC">
-  <div class="msg">Pausado</div>
-  <button id="resume">Voltar para a floresta</button>
+  <div class="msg" data-t="paused">Pausado</div>
+  <button id="resume" data-t="resume">Voltar para a floresta</button>
 </div>
+<script>
+/* Idiomas: textos do jogo + nome da Chapeuzinho como é conhecida em cada país. TR(chave) devolve no idioma atual. */
+const IDIOMAS={
+  pt:{nome:'Português (Brasil)',html:'pt-BR',title:'Chapeuzinho',sub:'use fones de ouvido',loading:'Preparando a floresta…',enter:'Entrar na floresta',paused:'Pausado',resume:'Voltar para a floresta',tap:'toque para jogar de novo',click:'clique para jogar de novo',noart:'Faltou a arte (demo/arte.js)',lang:'Idioma'},
+  en:{nome:'English',html:'en',title:'Little Red Riding Hood',sub:'wear headphones',loading:'Preparing the forest…',enter:'Enter the forest',paused:'Paused',resume:'Back to the forest',tap:'tap to play again',click:'click to play again',noart:'Art is missing (demo/arte.js)',lang:'Language'},
+  zh:{nome:'简体中文',html:'zh-CN',title:'小红帽',sub:'请戴上耳机',loading:'正在准备森林…',enter:'走进森林',paused:'已暂停',resume:'回到森林',tap:'轻触重新开始',click:'点击重新开始',noart:'缺少美术资源 (demo/arte.js)',lang:'语言'},
+  es:{nome:'Español',html:'es',title:'Caperucita Roja',sub:'usa auriculares',loading:'Preparando el bosque…',enter:'Entrar al bosque',paused:'En pausa',resume:'Volver al bosque',tap:'toca para jugar de nuevo',click:'haz clic para jugar de nuevo',noart:'Falta el arte (demo/arte.js)',lang:'Idioma'},
+  de:{nome:'Deutsch',html:'de',title:'Rotkäppchen',sub:'Kopfhörer empfohlen',loading:'Der Wald wird vorbereitet…',enter:'Den Wald betreten',paused:'Pausiert',resume:'Zurück in den Wald',tap:'Tippen, um neu zu spielen',click:'Klicken, um neu zu spielen',noart:'Grafik fehlt (demo/arte.js)',lang:'Sprache'},
+  th:{nome:'ไทย',html:'th',title:'หนูน้อยหมวกแดง',sub:'โปรดใส่หูฟัง',loading:'กำลังเตรียมป่า…',enter:'เข้าสู่ป่า',paused:'หยุดชั่วคราว',resume:'กลับเข้าป่า',tap:'แตะเพื่อเล่นอีกครั้ง',click:'คลิกเพื่อเล่นอีกครั้ง',noart:'ไม่พบไฟล์ภาพ (demo/arte.js)',lang:'ภาษา'},
+  fr:{nome:'Français',html:'fr',title:'Le Petit Chaperon rouge',sub:'mettez un casque',loading:'Préparation de la forêt…',enter:'Entrer dans la forêt',paused:'En pause',resume:'Retour à la forêt',tap:'touchez pour rejouer',click:'cliquez pour rejouer',noart:'Il manque les images (demo/arte.js)',lang:'Langue'},
+  ru:{nome:'Русский',html:'ru',title:'Красная Шапочка',sub:'наденьте наушники',loading:'Готовим лес…',enter:'Войти в лес',paused:'Пауза',resume:'Вернуться в лес',tap:'коснитесь, чтобы сыграть снова',click:'нажмите, чтобы сыграть снова',noart:'Не хватает графики (demo/arte.js)',lang:'Язык'}
+};
+const ORDEM_IDIOMAS=['pt','en','zh','es','de','th','fr','ru'];
+/* bandeiras em SVG (emoji de bandeira não aparece no Windows) */
+function estrela(cx,cy,r,rot){ let p=''; for(let i=0;i<10;i++){ const a=(rot||0)-Math.PI/2+i*Math.PI/5, rr=i%2?r*.42:r; p+=(cx+rr*Math.cos(a)).toFixed(2)+','+(cy+rr*Math.sin(a)).toFixed(2)+' '; } return '<polygon fill="#ffde00" points="'+p+'"/>'; }
+function faixas(cores,vert){ const n=cores.length; return cores.map((c,i)=>vert?'<rect x="'+(30*i/n)+'" y="0" width="'+(30/n+.05)+'" height="20" fill="'+c+'"/>':'<rect x="0" y="'+(20*i/n)+'" width="30" height="'+(20/n+.05)+'" fill="'+c+'"/>').join(''); }
+const BANDEIRAS={
+  pt:'<rect width="30" height="20" fill="#009b3a"/><polygon points="15,2.2 27.6,10 15,17.8 2.4,10" fill="#fedf00"/><circle cx="15" cy="10" r="4.7" fill="#002776"/><path d="M10.6 9.2 Q15 8 19.4 10.6" stroke="#fff" stroke-width=".9" fill="none"/>',
+  en:(()=>{ let s=''; for(let i=0;i<13;i++) s+='<rect x="0" y="'+(i*20/13)+'" width="30" height="'+(20/13+.05)+'" fill="'+(i%2?'#fff':'#b22234')+'"/>'; s+='<rect width="12.5" height="10.77" fill="#3c3b6e"/>'; for(let r=0;r<4;r++) for(let c=0;c<5;c++) s+='<circle cx="'+(1.4+c*2.45+(r%2)*1.2)+'" cy="'+(1.5+r*2.55)+'" r=".55" fill="#fff"/>'; return s; })(),
+  zh:'<rect width="30" height="20" fill="#de2910"/>'+estrela(5,5,3)+estrela(10,2,1,.4)+estrela(12,4,1,.8)+estrela(12,7,1,0)+estrela(10,9,1,.4),
+  es:faixas(['#aa151b','#f1bf00','#f1bf00','#aa151b']),
+  de:faixas(['#000','#dd0000','#ffce00']),
+  th:faixas(['#a51931','#f4f5f8','#2d2a4a','#2d2a4a','#f4f5f8','#a51931']),
+  fr:faixas(['#0055a4','#fff','#ef4135'],true),
+  ru:faixas(['#fff','#0039a6','#d52b1e'])
+};
+const bandeira=k=>'<svg viewBox="0 0 30 20" preserveAspectRatio="none" aria-hidden="true">'+BANDEIRAS[k]+'</svg>';
+let LANG=(()=>{ try{ const g=localStorage.getItem('chapeu_lang'); if(g && IDIOMAS[g]) return g; }catch(e){}
+  const n=(navigator.language||'pt').toLowerCase().slice(0,2); return IDIOMAS[n]?n:'pt'; })();
+function TR(k){ return (IDIOMAS[LANG]&&IDIOMAS[LANG][k])||IDIOMAS.pt[k]||k; }
+function ajustarTitulo(){ // nomes longos (inglês, francês) encolhem para caber numa linha
+  const h=document.querySelector('#start h1'); if(!h) return; h.style.fontSize='';
+  const max=Math.min(innerWidth*.92,1150), w=h.scrollWidth;
+  if(w>max) h.style.fontSize=(parseFloat(getComputedStyle(h).fontSize)*max/w)+'px';
+}
+function setLang(k){
+  if(!IDIOMAS[k]) return; LANG=k; try{ localStorage.setItem('chapeu_lang',k); }catch(e){}
+  document.documentElement.lang=IDIOMAS[k].html;
+  document.querySelectorAll('[data-t]').forEach(el=>{ el.textContent=TR(el.dataset.t); });
+  const go=document.getElementById('go'); if(go && !go.disabled) go.textContent=TR('enter');
+  const b=document.getElementById('lang'); b.innerHTML=bandeira(k)+'<span aria-hidden="true">▾</span>'; b.setAttribute('aria-label',TR('lang')); b.title=TR('lang');
+  document.querySelectorAll('#langlist button').forEach(x=>x.classList.toggle('on',x.dataset.k===k));
+  document.title=TR('title');
+  ajustarTitulo();
+}
+(()=>{
+  const lista=document.getElementById('langlist'), b=document.getElementById('lang');
+  lista.innerHTML=ORDEM_IDIOMAS.map(k=>'<button data-k="'+k+'" lang="'+IDIOMAS[k].html+'">'+bandeira(k)+'<span>'+IDIOMAS[k].nome+'</span></button>').join('');
+  b.addEventListener('click',e=>{ e.stopPropagation(); lista.classList.toggle('hide'); });
+  lista.addEventListener('click',e=>{ const x=e.target.closest('button'); if(!x) return; e.stopPropagation(); setLang(x.dataset.k); lista.classList.add('hide'); });
+  document.addEventListener('click',e=>{ if(!lista.classList.contains('hide') && !lista.contains(e.target) && !b.contains(e.target)) lista.classList.add('hide'); });
+  addEventListener('resize',ajustarTitulo);
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(ajustarTitulo);
+  setLang(LANG);
+})();
+</script>
 
 
 
@@ -721,7 +785,7 @@ function over(){ if(dying) return; dying=true;
   $('pbtn').classList.add('hide'); stickEnd(); $('hud').classList.add('hide'); if(document.exitPointerLock) document.exitPointerLock();
   if(AC && AC.state==='running'){ sfx.gush(); }
   bloodRun('cover',()=>{
-    const m=$('deathmsg'); m.textContent=TOUCH?'toque para jogar de novo':'clique para jogar de novo'; m.classList.add('on'); // sem frase de morte (pedido do Rodolfo)
+    const m=$('deathmsg'); m.textContent=TR(TOUCH?'tap':'click'); m.classList.add('on'); // sem frase de morte (pedido do Rodolfo)
     let gone=false; const back=()=>{ if(gone) return; gone=true; try{ sessionStorage.setItem('chapeu_sangue','1'); }catch(e){} m.classList.remove('on'); setTimeout(()=>location.reload(),500); };
     $('bloodfx').onclick=back; $('bloodfx').classList.add('cover'); });
 }
@@ -1027,9 +1091,9 @@ setTimeout(()=>{
     scene.traverse(o=>{ if(o.material && !o.material.isShaderMaterial) patchInvert(o.material); });
     Object.values(PECAS).forEach(l=>l.forEach(p=>{ patchInvert(p.mat); if(p.matRosto) patchInvert(p.matRosto); })); patchInvert(hangMat);
     state='ready'; update(0); state='loading';
-    $('go').disabled=false; $('go').textContent='Entrar na floresta';
+    $('go').disabled=false; $('go').textContent=TR('enter');
     requestAnimationFrame(frame);
-  }).catch(e=>{ console.error(e); $('go').textContent='Faltou a arte (demo/arte.js)'; });
+  }).catch(e=>{ console.error(e); $('go').textContent=TR('noart'); });
 },50);
 </script>
 </body>
