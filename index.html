@@ -37,12 +37,12 @@
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126174915"></script>
-<script src="lobo.js?v=20261126174915"></script>
-<script src="ceu.js?v=20261126174915"></script>
-<script src="capa.js?v=20261126174915"></script>
-<script src="casa.js?v=20261126174915"></script>
-<script src="lobocorpo.js?v=20261126174915"></script>
+<script src="arte.js?v=20261126180452"></script>
+<script src="lobo.js?v=20261126180452"></script>
+<script src="ceu.js?v=20261126180452"></script>
+<script src="capa.js?v=20261126180452"></script>
+<script src="casa.js?v=20261126180452"></script>
+<script src="lobocorpo.js?v=20261126180452"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -370,16 +370,18 @@ const HOUSE_W=16, HOUSE_D=[34,34,34,34,34,34,27,21,16,13], HOUSE_S=[1,1,1,1,1,1,
 function buildHouse(){
   if(!CASATEX.casa) return;
   const C=CASA.casa, H=HOUSE_W*C.h/C.w, geo=new THREE.PlaneGeometry(HOUSE_W,H); geo.translate(0,H/2,0);
-  // A casa surge da névoa: em vez de ficar transparente (aí as árvores de trás apareciam através dela), ela cobre o que
-  // está atrás com a cor da névoa e o desenho vai de "só névoa" a nítido. Visualmente: 100% -> 0% de transparência.
-  const mat=new THREE.ShaderMaterial({uniforms:{map:{value:CASATEX.casa},uVis:{value:0},uInv:INV,uFog:{value:new THREE.Color(PAPER)}},side:THREE.DoubleSide,transparent:true,depthWrite:false,
+  // A casa fica ATRÁS de todas as árvores, até das apagadas pela névoa: ela é MULTIPLICADA sobre o que já está desenhado.
+  // O papel da casa (≈branco) não muda nada; o traço dela escurece o fundo. Assim o traço de qualquer árvore lá atrás
+  // continua aparecendo por cima da casa (árvore "transparente" na frente), e as árvores perto (preenchidas) a tapam pelo depth.
+  // No clarão (cores invertidas) a conta vira MAX: traço branco sobre fundo escuro. Visibilidade: 0 -> 1 = 100% -> 0% de transparência.
+  const mat=new THREE.ShaderMaterial({uniforms:{map:{value:CASATEX.casa},uVis:{value:0},uInv:INV},side:THREE.DoubleSide,transparent:true,depthWrite:false,
+    blending:THREE.CustomBlending, blendEquation:THREE.AddEquation, blendSrc:THREE.DstColorFactor, blendDst:THREE.ZeroFactor,
     vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }',
-    fragmentShader:`uniform sampler2D map; uniform float uVis,uInv; uniform vec3 uFog; varying vec2 vUv;
+    fragmentShader:`uniform sampler2D map; uniform float uVis,uInv; varying vec2 vUv;
       void main(){ vec4 tx=texture2D(map,vUv); if(tx.a<.5) discard;
-        float foot=mix(.35,1.,smoothstep(.0,.2,vUv.y));
-        float show=uVis*foot, a=smoothstep(.0,.4,uVis)*foot;
-        vec3 c=mix(uFog,tx.rgb,clamp(show/max(a,.001),0.,1.));
-        c=mix(c,1.-c,uInv); gl_FragColor=vec4(c,a); }`});
+        float show=uVis*mix(.35,1.,smoothstep(.0,.2,vUv.y));   // o pé some na neblina
+        vec3 c=mix(vec3(1.),clamp(tx.rgb/.95,0.,1.),show);     // papel da casa = branco puro (não escurece o fundo)
+        gl_FragColor=vec4(uInv>.5?1.-c:c,1.); }`});
   house=new THREE.Mesh(geo,mat); house.visible=false; scene.add(house);
   // lobisomem: filho da casa (fica na porta, na escala dela); no bote solta da casa e vem para a câmera
   if(CASATEX.lobPe && CASATEX.lobBote){
@@ -415,6 +417,8 @@ function houseTick(dt,wx,wz){
   house.rotation.set(0,houseHead,0);
   house.scale.setScalar(houseS*k);
   house.material.uniforms.uVis.value=houseVis;
+  { const m=house.material, inv=INV.value>.5; // normal: multiplica (traço escurece); clarão: max (traço claro sobre o escuro)
+    m.blendEquation=inv?THREE.MaxEquation:THREE.AddEquation; m.blendSrc=inv?THREE.OneFactor:THREE.DstColorFactor; m.blendDst=inv?THREE.OneFactor:THREE.ZeroFactor; }
 }
 function startHouse(){ // 10 flores: chegou na casa
   if(state!=='play') return; state='house'; houseT=0; musicOn=false; keys.fwd=keys.left=keys.right=false; stickEnd();
