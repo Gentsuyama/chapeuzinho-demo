@@ -33,12 +33,18 @@
   #endtxt p{font-size:clamp(26px,4vw,40px);margin:.3em 0;opacity:0;transition:opacity 1.6s}
   #endtxt p.on{opacity:1}
   #endtxt .big{color:var(--red);font-size:clamp(34px,6vw,60px)}
+  #bloodfx{position:fixed;inset:0;width:100%;height:100%;z-index:20;pointer-events:none}
+  #bloodfx.cover{pointer-events:auto;cursor:pointer}
+  #deathmsg{position:fixed;left:0;right:0;top:50%;transform:translateY(-50%);z-index:21;text-align:center;padding:0 16px;font-size:clamp(30px,5.5vw,56px);color:var(--paper);opacity:0;transition:opacity 1.2s;pointer-events:none;text-shadow:0 2px 0 #3a0008}
+  #deathmsg.on{opacity:1}
+  #deathmsg small{display:block;font-size:.45em;opacity:.7;margin-top:.8em}
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126120339"></script>
-<script src="lobo.js?v=20261126120339"></script>
-<script src="ceu.js?v=20261126120339"></script>
+<script src="arte.js?v=20261126134901"></script>
+<script src="lobo.js?v=20261126134901"></script>
+<script src="ceu.js?v=20261126134901"></script>
+<script src="capa.js?v=20261126134901"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -47,6 +53,10 @@
 <canvas id="rain"></canvas>
 <div id="flash"></div>
 <div id="fade"></div>
+<canvas id="bloodfx" class="hide"></canvas>
+<div id="deathmsg"></div>
+<script>/* voltando de uma morte: a tela já começa coberta de sangue, que escorre e revela o menu */
+try{ if(sessionStorage.getItem('chapeu_sangue')){ const b=document.getElementById('bloodfx'); b.classList.remove('hide'); b.style.background='#7d0818'; } }catch(e){}</script>
 
 <div id="start" class="ov paper">
   <h1>Chapeuzinho</h1>
@@ -72,10 +82,6 @@
   <button id="soft">Clarões: normais</button>
 </div>
 
-<div id="over" class="ov dark hide">
-  <div class="msg" id="overmsg"></div>
-  <button onclick="location.reload()">Tentar de novo</button>
-</div>
 
 <div id="end" class="ov paper hide">
   <div id="endtxt">
@@ -156,13 +162,14 @@ function boilMat(frames,opts){ const m=new THREE.MeshBasicMaterial(Object.assign
 
 // ---------- arte do Flow: peças recortadas (demo/arte.js, gerado por arte/cortar_pecas.py) ----------
 const LW=9;
-let WOLFTEX=null, SKYTEX=null;
+let arms=[], WOLFTEX=null, SKYTEX=null; const CAPAIMG={}; // capa de costas e braços (demo/capa.js)
 const PECAS={}; // categoria -> peças {w,h,px,py,asp,geo,mat,...}
 function loadPecas(){
   if(!window.ARTE) return Promise.reject(new Error('arte.js não carregou'));
   const lobo=window.LOBO?new Promise(ok=>{ const im=new Image(); im.onload=()=>{ WOLFTEX=new THREE.Texture(im); WOLFTEX.needsUpdate=true; ok(); }; im.onerror=()=>ok(); im.src=LOBO.src; }):Promise.resolve();
   const ceu=window.CEU?new Promise(ok=>{ const im=new Image(); im.onload=()=>{ SKYTEX=new THREE.Texture(im); SKYTEX.wrapS=THREE.RepeatWrapping; SKYTEX.repeat.x=-1; SKYTEX.offset.x=1; SKYTEX.anisotropy=ANISO; SKYTEX.needsUpdate=true; ok(); }; im.onerror=()=>ok(); im.src=CEU.src; }):Promise.resolve();
-  return Promise.all([lobo,ceu].concat(ARTE.map(p=>new Promise((ok,fail)=>{ const im=new Image(); im.onload=()=>{ if(!p.srcRosto) return ok([p,im]); const i2=new Image(); i2.onload=()=>ok([p,im,i2]); i2.onerror=fail; i2.src=p.srcRosto; }; im.onerror=fail; im.src=p.src; })))).then(list=>{ list.splice(0,2);
+  const capa=window.CAPA?Promise.all(Object.keys(CAPA).map(k=>new Promise(ok=>{ const im=new Image(); im.onload=()=>{ CAPAIMG[k]=im; ok(); }; im.onerror=()=>ok(); im.src=CAPA[k].src; }))):Promise.resolve();
+  return Promise.all([lobo,ceu,capa].concat(ARTE.map(p=>new Promise((ok,fail)=>{ const im=new Image(); im.onload=()=>{ if(!p.srcRosto) return ok([p,im]); const i2=new Image(); i2.onload=()=>ok([p,im,i2]); i2.onerror=fail; i2.src=p.srcRosto; }; im.onerror=fail; im.src=p.src; })))).then(list=>{ list.splice(0,3);
     list.forEach(([p,im,im2])=>{
       let src=im;
       if(p.cat==='garra'){ // garra invertida (miolo preto, traço claro): salta da floresta branca
@@ -243,6 +250,8 @@ function drawHouse(c,jr,a){
   line(c,J([[375,470],[375,570]],a,jr),5); line(c,J([[655,470],[655,570]],a,jr),5);
 }
 // Chapeuzinho de costas
+function capaImg(c,im,cx,top,w,h,jr){ // peça do Flow com um tremor leve de traço (troca a cada quadro do "boil")
+  c.save(); c.translate(cx+(jr()-.5)*3,top+h/2+(jr()-.5)*3); c.rotate((jr()-.5)*.012); c.drawImage(im,-w/2,-h/2,w,h); c.restore(); }
 const RC=mkCanvas(512,700), rctx=RC.getContext('2d'); const redTex=tex(RC);
 function drawRed(dir,hp,seed,a,reach){
   const c=rctx, jr=RNG(seed); c.clearRect(0,0,512,700); prep(c);
@@ -250,6 +259,9 @@ function drawRed(dir,hp,seed,a,reach){
     const lx=reach?-8:8;
     shape(c,J([[214,600],[246,604],[236,662],[206,656]],a,jr),true,PAPER,9,true); shape(c,J([[268,604],[300,600],[308,656],[278,662]],a,jr),true,PAPER,9,true);
     shape(c,J([[196,650],[240,656],[236,692],[190,686]],a,jr),true,INK,6,true); shape(c,J([[274,656],[318,650],[324,686],[278,692]],a,jr),true,INK,6,true);
+    if(CAPAIMG.capa1 && CAPAIMG.capuz){ // arte do Flow: capa em farrapos deitada (achatada) + capuz; braços são malhas à parte
+      capaImg(c,CAPAIMG.capa1,256,420,300,230,jr); capaImg(c,CAPAIMG.capuz,256+dir*14+lx,300,190,200,jr);
+      redTex.needsUpdate=true; return; }
     // braços puxando o corpo (um à frente, outro atrás, alternando)
     const ay=reach?[330,400]:[400,330];
     limb(c,J([[176,500],[150,450],[140,ay[0]]],a,jr),34,24,PAPER,9); limb(c,J([[336,500],[362,450],[372,ay[1]]],a,jr),34,24,PAPER,9);
@@ -274,7 +286,10 @@ function drawRed(dir,hp,seed,a,reach){
   shape(c,J([[352,450],[462,450],[446,520],[366,520]],a,jr),true,PAPER,8,true);
   for(let i=0;i<4;i++){ line(c,J([[372+i*24,452],[384+i*20,518]],a*.5,jr),3); }
   line(c,J([[358,476],[456,476]],a*.5,jr),3); line(c,J([[362,498],[450,498]],a*.5,jr),3);
-  if(hp>0){
+  if(hp>0 && CAPAIMG.capuz && CAPAIMG['capa'+hp]){ // arte do Flow: capa de costas (inteira / rasgada / farrapos) + capuz que acompanha a cabeça
+    const im=CAPAIMG['capa'+hp], k=435/442;
+    capaImg(c,im,256,165,im.width*k,im.height*k,jr); capaImg(c,CAPAIMG.capuz,256+dir*16,45,223,268,jr);
+  } else if(hp>0){
     const bottom=[0,455,528,602][hp], topY=250, amp=10+(3-hp)*16, pts=[[161,topY],[351,topY],[378,topY+80],[404,bottom-8]];
     const n=10; for(let i=1;i<n;i++) pts.push([404-296*i/n, bottom+((i%2)?-(amp*(.5+jr()*.7)):6)]);
     pts.push([108,bottom-8],[134,topY+80]);
@@ -357,6 +372,12 @@ function buildWorld(){
   house=new THREE.Mesh(new THREE.PlaneGeometry(9,6.75),houseMat); placeOnPath(house,-TOTAL-6,0,3.2); scene.add(house);
   // Chapeuzinho
   red=new THREE.Mesh(new THREE.PlaneGeometry(.95,1.3),new THREE.MeshBasicMaterial({map:redTex,alphaTest:.5,side:THREE.DoubleSide})); scene.add(red);
+  arms=[]; if(CAPAIMG.estica && CAPAIMG.puxa){
+    const mkArm=(k,ax,ay,H)=>{ const im=CAPAIMG[k], t=new THREE.Texture(im); t.needsUpdate=true; const w=H*im.width/im.height;
+      const geo=new THREE.PlaneGeometry(w,H); geo.translate(-(ax-.5)*w,-(.5-ay)*H,0); return {geo,mat:new THREE.MeshBasicMaterial({map:t,alphaTest:.5,side:THREE.DoubleSide})}; };
+    const E=mkArm('estica',.21,.93,.40), P=mkArm('puxa',.18,.34,.30);
+    for(const side of [1,-1]){ const m=new THREE.Mesh(E.geo,E.mat); m.userData={E,P,side}; m.scale.x=side; m.visible=false; red.add(m); arms.push(m); }
+  }
   // olhos
   eyes=new THREE.Mesh(new THREE.PlaneGeometry(11,4.3),eyesMat); eyes.renderOrder=5; eyes.visible=false; scene.add(eyes);
   // garras e flores (nível fixo). A garra fica logo atrás da fileira: sai de trás do tronco da beira.
@@ -522,6 +543,7 @@ const sfx={
   rustle(){ burst({dur:.18,type:'bandpass',f:2600+Math.random()*1500,q:1.5,gain:.12}); },
   limp(){ burst({dur:.09,f:420,gain:.08,dest:A.forest}); burst({dur:.3,type:'bandpass',f:900,f2:500,q:1.2,gain:.07,dest:A.forest}); }, // pé arrastado
   drag(){ burst({dur:.55,type:'bandpass',f:700,f2:350,q:.9,gain:.16,attack:.08,dest:A.forest}); burst({t:AC.currentTime+.1,dur:.4,type:'bandpass',f:2200,q:2,gain:.05,dest:A.forest}); }, // corpo no chão
+  gush(){ const t=AC.currentTime; burst({dur:2.4,type:'lowpass',f:420,f2:160,gain:.35,attack:.4}); for(let i=0;i<9;i++) burst({t:t+.5+i*.21+Math.random()*.1,dur:.06,type:'bandpass',f:500+Math.random()*500,q:6,gain:.14}); }, // sangue escorrendo
   roar(){ burst({dur:1.7,f:180,f2:900,gain:.9,attack:.45}); tone({type:'sawtooth',f:38,f2:62,dur:1.7,gain:.45,attack:.3}); }
 };
 
@@ -571,7 +593,50 @@ function hit(){
   if(hp<=0){ state='torn'; musicOn=false; setTimeout(()=>over('A floresta rasgou toda a capa.'),1200); }
 }
 function caught(){ state='caught'; caughtT=0; musicOn=false; sfx.roar(); }
-function over(msg){ $('pbtn').classList.add('hide'); stickEnd(); $('overmsg').textContent=msg; $('over').classList.remove('hide'); $('hud').classList.add('hide'); if(document.exitPointerLock) document.exitPointerLock(); }
+// morte: o sangue escorre do alto e cobre a tela; aparece a frase; o sangue escorre para baixo e revela o menu
+let dying=false;
+function over(msg){ if(dying) return; dying=true;
+  $('pbtn').classList.add('hide'); stickEnd(); $('hud').classList.add('hide'); if(document.exitPointerLock) document.exitPointerLock();
+  if(AC && AC.state==='running'){ sfx.gush(); }
+  bloodRun('cover',()=>{
+    const m=$('deathmsg'); m.innerHTML=''; m.append(msg); const sm=document.createElement('small'); sm.textContent=TOUCH?'toque para voltar':'clique para voltar'; m.append(sm); m.classList.add('on');
+    let gone=false; const back=()=>{ if(gone) return; gone=true; try{ sessionStorage.setItem('chapeu_sangue','1'); }catch(e){} m.classList.remove('on'); setTimeout(()=>location.reload(),500); };
+    setTimeout(back,4200); $('bloodfx').onclick=back; $('bloodfx').classList.add('cover'); });
+}
+const BLOOD='#7d0818';
+function bloodRun(mode,done){
+  const cv=$('bloodfx'), g=cv.getContext('2d'), W=innerWidth, H=innerHeight, r=Math.random;
+  cv.width=W; cv.height=H; cv.classList.remove('hide');
+  const gr=g.createLinearGradient(0,0,0,H); gr.addColorStop(0,'#8e0a1c'); gr.addColorStop(1,'#5c0410');
+  // borda do sangue: curva irregular e suave (nós aleatórios a cada ~70px)
+  const KN=Math.ceil(W/70)+2, kn=[]; for(let i=0;i<KN;i++) kn.push(r());
+  const off=x=>{ const f=x/70, i=Math.floor(f), u=f-i, e=(1-Math.cos(u*Math.PI))/2; return lerp(kn[i]||0,kn[i+1]||0,e); };
+  const AMP=H*.14, drips=[], nd=Math.round(W/(mode==='cover'?34:30));
+  for(let i=0;i<nd;i++){ const big=r()<.25; drips.push({x:r()*W, w:big?9+r()*9:2.5+r()*6, v:(mode==='cover'?30:25)+r()*r()*(mode==='cover'?240:160), a:r()*r()*(mode==='cover'?160:60), d:mode==='cover'?0:r()*H*.6, hl:r()<.3}); }
+  let last=performance.now(), T=0;
+  const edge=(x,base)=>base+off(x)*AMP;
+  (function step(now){ const dt=Math.min(.05,(now-last)/1000); last=now; T+=dt; if(mode==='drain') cv.style.background='none';
+    g.clearRect(0,0,W,H); g.fillStyle=gr;
+    if(mode==='cover'){ // cortina que desce do alto, com gotas compridas correndo na frente
+      const k=Math.min(1,T/2.8), base=-AMP+(H+AMP*1.2)*Math.pow(k,1.7);
+      g.beginPath(); g.moveTo(0,0); for(let x=0;x<=W+8;x+=8) g.lineTo(x,edge(x,base)+Math.sin(x*.05+T*3)*3); g.lineTo(W,0); g.closePath(); g.fill();
+      for(const d of drips){ d.v+=d.a*dt; d.d+=d.v*dt; const y0=edge(d.x,base), y=y0+d.d;
+        g.fillRect(d.x-d.w/2,0,d.w,y); g.beginPath(); g.arc(d.x,y,d.w*.75,0,6.283); g.fill();
+        if(d.hl){ g.fillStyle='rgba(255,180,180,.18)'; g.fillRect(d.x-d.w*.25,y0,Math.max(1,d.w*.15),d.d-d.w); g.fillStyle=gr; } }
+      if(k>=1){ g.fillRect(0,0,W,H); if(done) done(); return; }
+    } else { // o sangue escorre para baixo e revela o menu, deixando rastros finos que descem mais devagar
+      const k=Math.min(1,T/2.4), base=-AMP*1.2+(H+AMP*1.4)*Math.pow(k,1.5);
+      g.beginPath(); g.moveTo(0,H); for(let x=0;x<=W+8;x+=8) g.lineTo(x,edge(x,base)); g.lineTo(W,H); g.closePath(); g.fill();
+      let vivos=0;
+      for(const d of drips){ const yb=edge(d.x,base); if(!d.on){ if(yb>d.d+20) d.on=true; else { vivos++; continue; } }
+        d.d+=d.v*dt; if(d.d>=yb) continue; vivos++; // rastro: fica grudado depois que a cortina passa e desce devagar
+        g.fillRect(d.x-d.w/2,d.d,d.w,yb-d.d+2); g.beginPath(); g.arc(d.x,d.d,d.w*.6,0,6.283); g.fill();
+        if(d.hl){ g.fillStyle='rgba(255,180,180,.15)'; g.fillRect(d.x-d.w*.25,d.d+d.w,Math.max(1,d.w*.15),yb-d.d); g.fillStyle=gr; } }
+      if(k>=1 && !vivos){ cv.classList.add('hide'); return; }
+    }
+    requestAnimationFrame(step); })(last);
+}
+try{ if(sessionStorage.getItem('chapeu_sangue')){ sessionStorage.removeItem('chapeu_sangue'); setTimeout(()=>bloodRun('drain'),350); } }catch(e){}
 
 // ---------- chuva e relâmpago ----------
 const rainCv=document.getElementById('rain'), rg=rainCv.getContext('2d'); let RW=1,RH=1,RD=1,lastY=null;
@@ -656,8 +721,8 @@ function update(dt){
   if(state==='play'){
     if(keys.fwd){
       if(hp>=3) speed=keys.run?3.5:2.2;
-      else if(hp===2){ gaitT+=dt*3.4; speed=(gaitT%6.283<3.1416)?1.9:.55; } // manca: passo bom, passo ruim
-      else { gaitT+=dt*2.3; speed=2.1*Math.pow(Math.max(0,Math.sin(gaitT)),2); } // se arrasta: puxões com os braços
+      else if(hp===2){ gaitT+=dt*4.2; speed=1.3+.12*Math.sin(gaitT); } // manca: ritmo constante, sem parar
+      else { gaitT+=dt*2.6; speed=.42+.05*Math.sin(gaitT*2); } // se arrasta: bem lenta, mas contínua (um braço puxa enquanto o outro estica)
     }
     frameAt(pz,FR); // anda pela trilha; a curva a leva sozinha
     const lat=clamp((keys.right?1:0)-(keys.left?1:0)+touchLat,-1,1); px=clamp(px+lat*2.6*dt,-PXMAX,PXMAX);
@@ -679,7 +744,7 @@ function update(dt){
     if(pz<-TOTAL){ state='end'; endT=0; }
   } else if(state==='caught'){
     caughtT+=dt; yaw+=(eyeSide*-MAXY*.95-yaw)*Math.min(1,dt*5); lookAmt=1;
-    if(caughtT>1.7 && $('over').classList.contains('hide')) over('Os olhos chegaram até ela.');
+    if(caughtT>1.3 && !dying) over('Os olhos chegaram até ela.');
   } else if(state==='end'){
     endT+=dt; pz-=1.2*dt; yaw*=.95; lookAmt=0;
     $('fade').style.opacity=clamp((endT-1)/2,0,1);
@@ -777,12 +842,13 @@ function update(dt){
   boilT+=dt; if(boilT>.2){ boilT=0; boilF=(boilF+1)%3; boilers.forEach(b=>b.mat.map=b.frames[boilF]); lastRed=''; }
   // Chapeuzinho
   const dir=yaw>.5?-1:(yaw<-.5?1:0);
-  const reach=hp===1?(Math.sin(gaitT)>0?1:0):0, key=dir+'|'+hp+'|'+boilF+'|'+reach;
+  const reach=hp===1&&!arms.length?(Math.sin(gaitT)>0?1:0):0, key=dir+'|'+hp+'|'+boilF+'|'+reach;
   if(key!==lastRed){ lastRed=key; drawRed(dir,hp,boilF*11+3,2.2,reach); }
   crawlK+=((hp===1&&state!=='end'?1:0)-crawlK)*Math.min(1,dt*3);
   let bob=speed>0?Math.abs(Math.sin(t*speed*3.4))*.03:0, tilt=0;
-  if(hp===2&&keys.fwd&&state==='play'){ const ph=gaitT%6.283; bob=ph<3.1416?Math.sin(ph)*.045:-Math.sin(ph-3.1416)*.06; tilt=ph<3.1416?.03:-.09*Math.sin(ph-3.1416); } // mancando
-  if(hp===1){ bob=keys.fwd&&state==='play'?Math.max(0,Math.sin(gaitT))*.03:0; }
+  if(hp===2&&keys.fwd&&state==='play'){ const sn=Math.sin(gaitT); bob=.05*sn; tilt=.065*sn-.02; } // mancando: sobe na perna boa, afunda na ferida, sempre no mesmo ritmo
+  if(hp===1){ const mv=keys.fwd&&state==='play'; bob=mv?.012*Math.sin(gaitT*2):0; tilt=mv?.03*Math.sin(gaitT):0; }
+  armsTick(hp===1&&state!=='end');
   const jit=inv>0?Math.sin(t*50)*.03:0;
   red.position.set(wx+jit*FR.c,.65+bob-.06*crawlK,wz-jit*FR.s); red.rotation.z=tilt;
   red.rotation.y=Y; red.visible=!(inv>0&&Math.floor(t*12)%2===0);
@@ -803,6 +869,19 @@ function update(dt){
     A.breath.gain.setTargetAtTime(br*Math.pow(Math.max(0,Math.sin(t*1.45)),2),n,.05);
     A.wind.gain.setTargetAtTime(.025+.045*wind,n,.3);
     if(Math.random()<dt*7) burst({dur:.02,type:'bandpass',f:2200+Math.random()*3000,q:4,gain:.03+Math.random()*.05,pan:Math.random()*2-1}); // pingos
+  }
+}
+// braços se arrastando: estica à frente, crava a mão e puxa (a mão fica no chão enquanto o corpo avança); os dois alternam
+const SH_X=.19, SH_Y=-.18; // ombros (coordenadas da folha da Chapeuzinho: .95 x 1.3, centro no meio)
+function armsTick(on){
+  for(const m of arms){ m.visible=on; if(!on) continue;
+    const {E,P,side}=m.userData, u=(((gaitT/6.2832)+(side>0?0:.5))%1+1)%1;
+    let pose=E, dy, rot;
+    if(u<.22){ const e=u/.22; dy=lerp(-.05,.06,e*e*(3-2*e)); rot=lerp(.2,.45,e); }          // estica para frente (rápido)
+    else if(u<.5){ const e=(u-.22)/.28; dy=lerp(.06,-.04,e); rot=lerp(.45,.36,e); }          // mão cravada: o corpo passa por ela
+    else { const e=(u-.5)/.5; pose=P; dy=lerp(.05,-.06,e); rot=lerp(.25,0,e); }             // braço dobrado puxando (sempre um estica enquanto o outro puxa)
+    if(m.geometry!==pose.geo){ m.geometry=pose.geo; m.material=pose.mat; }
+    m.position.set(side*SH_X, SH_Y+dy, -.004); m.rotation.z=side*rot; // atrás do corpo: ombro some sob o capuz
   }
 }
 function showEnd(){ $('pbtn').classList.add('hide'); stickEnd();
