@@ -50,13 +50,13 @@
   .msg{font-size:clamp(30px,5vw,52px);margin:0 0 .3em}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script src="arte.js?v=20261126190043"></script>
-<script src="lobo.js?v=20261126190043"></script>
-<script src="ceu.js?v=20261126190043"></script>
-<script src="capa.js?v=20261126190043"></script>
-<script src="casa.js?v=20261126190043"></script>
-<script src="lobocorpo.js?v=20261126190043"></script>
-<script src="menu.js?v=20261126190043"></script>
+<script src="arte.js?v=20261126190728"></script>
+<script src="lobo.js?v=20261126190728"></script>
+<script src="ceu.js?v=20261126190728"></script>
+<script src="capa.js?v=20261126190728"></script>
+<script src="casa.js?v=20261126190728"></script>
+<script src="lobocorpo.js?v=20261126190728"></script>
+<script src="menu.js?v=20261126190728"></script>
 </head>
 <body>
 <div id="hud" class="hide">✿ <span id="fl">0</span></div>
@@ -928,7 +928,8 @@ function update(dt){
     // o lobo se aproxima quando ela olha para o vazio (40% mais rápido que o original) e também sempre que fica parada (um pouco menos)
     stillT=speed>0?0:stillT+dt;
     let wRate=0; if(Math.abs(yaw)>.3){ wRate=(.012+.05*lookAmt)*1.12; eyeSide=yaw>0?-1:1; }
-    if(stillT>0) wRate=Math.max(wRate,.045*1.12*Math.min(1,stillT/.6));
+    const STILL_WAIT=1; // parada: o lobo só começa a vir depois de 1 s sem andar (soltar o botão por um instante não conta)
+    if(stillT>STILL_WAIT) wRate=Math.max(wRate,.045*1.12*Math.min(1,(stillT-STILL_WAIT)/.6));
     wolfNear=wRate>0; if(wRate>0){ progress=Math.min(1,progress+wRate*dt); if(progress>=1) caught(); }
     // passos
     if(hp>=3){ stepAcc+=speed*dt; if(stepAcc>.8){ stepAcc=0; sfx.step(keys.run?1.6:1); } }
